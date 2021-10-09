@@ -1,0 +1,19 @@
+# traefik.toml
+[providers.docker]
+  endpoint = "unix:///var/run/docker.sock"
+  exposedbydefault=false
+
+[log]
+  level = "INFO"
+
+# http-https redirect entrypoint declaration
+[entryPoints]
+  [entryPoints.http]
+    address = ":80"
+    [entryPoints.http.http]
+      [entryPoints.http.http.redirections]
+        [entryPoints.http.http.redirections.entrypoint]
+          to = "https"
+          scheme = "https"
+  [entryPoints.https]
+    address = ":443"

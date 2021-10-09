@@ -1,0 +1,64 @@
+version: "3.3"
+
+secrets:
+  ovh_endpoint:
+    file: "./secrets/ovh_endpoint.secret"
+  ovh_application_key:
+    file: "./secrets/ovh_application_key.secret"
+  ovh_application_secret:
+    file: "./secrets/ovh_application_secret.secret"
+  ovh_consumer_key:
+    file: "./secrets/ovh_consumer_key.secret"
+
+services:
+  traefik:
+    image: "traefik:v2.5"
+    container_name: "traefik"
+    command:
+      #- "--log.level=DEBUG"
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--certificatesresolvers.myresolver.acme.dnschallenge=true"
+      - "--certificatesresolvers.myresolver.acme.dnschallenge.provider=ovh"
+      - "--certificatesresolvers.myresolver.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory"
+      - "--certificatesresolvers.myresolver.acme.email=postmaster@meln.ovh"
+      - "--certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    secrets:
+      - "ovh_endpoint"
+      - "ovh_application_key"
+      - "ovh_application_secret"
+      - "ovh_consumer_key"
+    environment:
+      - "TZ=Europe/Paris"
+      - "OVH_ENDPOINT_FILE=/run/secrets/ovh_endpoint"
+      - "OVH_APPLICATION_KEY_FILE=/run/secrets/ovh_application_key"
+      - "OVH_APPLICATION_SECRET_FILE=/run/secrets/ovh_application_secret"
+      - "OVH_CONSUMER_KEY_FILE=/run/secrets/ovh_consumer_key"
+    volumes:
+      - "./letsencrypt:/letsencrypt"
+      - "./traefik:/etc/traefik:ro"
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+    labels:
+      - "traefik.http.routers.api.rule=Host(`test.meln.ovh`) && PathPrefix(`/dashb`)"
+      - "traefik.http.routers.api.service=api@internal"
+      - "traefik.http.routers.api.entrypoints=https"
+      - "traefik.http.routers.api.middlewares=auth"
+      - "traefik.http.routers.whoami.tls.certresolver=myresolver"
+      - "traefik.http.middlewares.auth.basicauth.users=nomad:$$apr1$$O13kNBR6$$sQ4oVt0goQwOtTYNEp6w51"
+
+  whoami:
+    image: "traefik/whoami"
+    container_name: "simple-service"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.whoami.rule=Host(`test.meln.ovh`) && PathPrefix(`/whoami`)"
+      # rule=Host(`whoami.meln.ovh`)"
+      - "traefik.http.routers.whoami.entrypoints=https"
+      - "traefik.http.routers.whoami.entrypoints=http"
+      - "traefik.http.routers.whoami.tls.certresolver=myresolver"
+
+      
