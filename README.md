@@ -31,6 +31,7 @@ Put the hash in an `.htpasswd` file in the `shared` directory, or as a secret.
 
 #### Restic Rest-server
 
+NB: add `.htpasswd` in rest-server folder in order to use authentication, or specify the `--no-auth` flag in OPTIONS.
 Test the config using the restic client as such: `restic -r rest:https://user:pass@restic.$DOMAINNAME:443/user init`. The user and pass should be configured, and the '443' option can be ommited as the `https` option provides the value.
 
 For **TLS**, it is not needed as trefik handles it for you.

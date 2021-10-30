@@ -3,3 +3,4 @@ traefik2/acme/*
 .env
 shared/*
 traefik2/traefik.log
+**/.htpasswd

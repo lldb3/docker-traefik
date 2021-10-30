@@ -183,7 +183,7 @@ services:
       - "traefik.http.routers.restic-rtr.rule=Host(`restic.$DOMAINNAME`)"
       - "traefik.http.routers.restic-rtr.tls=true"
       ## Middlewares
-      - "traefik.http.routers.restic-rtr.middlewares=chain-no-auth@file" # No Authentication
+      - "traefik.http.routers.restic-rtr.middlewares=chain-no-auth@file" 
       ## HTTP Services
       - "traefik.http.routers.restic-rtr.service=restic-svc"
       - "traefik.http.services.restic-svc.loadbalancer.server.port=8000"
