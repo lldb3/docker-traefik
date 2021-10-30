@@ -17,9 +17,21 @@ The configuration is provided as an example, and is derived from [this work](htt
 * secrets - use to store docker secrets
 * see the .gitignore for some I may have forgotten
 
-### .htpasswd generation
+### Basic Auth
 
-To generate a `echo $(htpasswd -nb username mystrongpassword) | sed -e s/\\$/\\$\\$/g`, this can then be added eithe in the `shared` directory, or as a secret.
+To generate an htpasswd, use the `htpasswd` util from `apache-utils` package.
+Put the hash in an `.htpasswd` file in the `shared` directory, or as a secret.
 
-**Note:** it seems there is a bug with basic authentication, using a long password can trigger an issue where the auth prompt will appear every time and not succeed. To prevent this, I've used a password of length 
+**Note:** if you use the docker-compose file to pass the password hash, you should escape the `$` signs with `$$`. You can do that in a single oneliner: `echo $(htpasswd -nb username mystrongpassword) | sed -e s/\\$/\\$\\$/g`,
+
+
+#### Security Headers as Labels
+
+/TODO
+
+#### Restic Rest-server
+
+Test the config using the restic client as such: `restic -r rest:https://user:pass@restic.$DOMAINNAME:443/user init`. The user and pass should be configured, and the '443' option can be ommited as the `https` option provides the value.
+
+For **TLS**, it is not needed as trefik handles it for you.
 

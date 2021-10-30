@@ -5,7 +5,6 @@ version: "3.6"
 # You may customize the network subnets (192.168.90.0/24 and 91.0/24) below as you please.
 # Docker Compose version 3.5 or higher required to define networks this way.
 
-
 ########################### SECRETS
 secrets:
   ovh_endpoint:
@@ -33,10 +32,6 @@ networks:
   #     config:
   #       - subnet: 192.168.91.0/24
 
-
-
-
-
 ########################### SERVICES
 services:
   ############################# FRONTENDS
@@ -62,7 +57,7 @@ services:
       # - --api.insecure=true
       - --api.dashboard=true
       - --log=true
-      - --log.level=WARN
+      #- --log.level=WARN
       - --accessLog=true
       - --accessLog.filePath=/traefik.log
       - --accessLog.bufferingSize=1000 # Configuring a buffer of 1000 lines
@@ -100,7 +95,7 @@ services:
       - ovh_application_secret
       - ovh_consumer_key
     security_opt:
-      - no-new-privileges:true # non new privileges gained by containers
+      - no-new-privileges:true # no new privileges gained by containers
     environment:
       - TZ=$TZ
       - OVH_ENDPOINT_FILE=/run/secrets/ovh_endpoint
@@ -132,4 +127,63 @@ services:
       ## Services - API
       - traefik.http.routers.traefik-rtr.service=api@internal 
       ## Middlewares
-      - traefik.http.routers.traefik-rtr.middlewares=middlewares-rate-limit@file,middlewares-basic-auth@file
+      - traefik.http.routers.traefik-rtr.middlewares=middlewares-rate-limit@file,middlewares-basic-auth@file,middlewares-secure-headers@file
+
+# Portainer - WebUI for Containers
+  portainer:
+    container_name: portainer
+    image: portainer/portainer-ce:latest
+    restart: unless-stopped
+    command: -H unix:///var/run/docker.sock
+    networks:
+      - t2_proxy
+    security_opt:
+      - no-new-privileges:true
+    ports:
+     - "$PORTAINER_PORT:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - $DOCKERDIR/portainer/data:/data 
+    environment:
+      - TZ=$TZ
+    labels:
+      - "traefik.enable=true"
+      ## HTTP Routers
+      - "traefik.http.routers.portainer-rtr.entrypoints=https"
+      - "traefik.http.routers.portainer-rtr.rule=Host(`portainer.$DOMAINNAME`) || (Host(`portainer.$DOMAINNAME`) && PathPrefix(`/api`))"
+      - "traefik.http.routers.portainer-rtr.tls=true"
+      ## Middlewares
+     # - "traefik.http.routers.portainer-rtr.middlewares=chain-no-auth@file" # No Authentication
+      - "traefik.http.routers.portainer-rtr.middlewares=chain-basic-auth@file" # Basic Authentication
+#       - "traefik.http.routers.portainer-rtr.middlewares=chain-oauth@file" # Google OAuth 2.0
+      ## HTTP Services
+      - "traefik.http.routers.portainer-rtr.service=portainer-svc"
+      - "traefik.http.services.portainer-svc.loadbalancer.server.port=9000"
+
+  rest-server:
+    container_name: rest-server
+    image: restic/rest-server:latest
+    restart: unless-stopped
+    networks:
+      - t2_proxy
+    security_opt:
+      - no-new-privileges:true
+    ports:
+     - "8000:8000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - $DOCKERDIR/rest-server/data:/data 
+    environment:
+      - OPTIONS= --private-repos --append-only --path=/data
+      - TZ=$TZ
+    labels:
+      - "traefik.enable=true"
+      ## HTTP Routers
+      - "traefik.http.routers.restic-rtr.entrypoints=https"
+      - "traefik.http.routers.restic-rtr.rule=Host(`restic.$DOMAINNAME`)"
+      - "traefik.http.routers.restic-rtr.tls=true"
+      ## Middlewares
+      - "traefik.http.routers.restic-rtr.middlewares=chain-no-auth@file" # No Authentication
+      ## HTTP Services
+      - "traefik.http.routers.restic-rtr.service=restic-svc"
+      - "traefik.http.services.restic-svc.loadbalancer.server.port=8000"
