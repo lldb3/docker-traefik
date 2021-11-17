@@ -1,0 +1,15 @@
+[http.routers]
+  [http.routers.restic-rtr]
+      entryPoints = ["https"]
+      rule = "Host(`restic.meln.ovh`)"
+      service = "restic-svc"
+      middlewares = ["chain-no-auth"]
+      [http.routers.restic-rtr.tls]
+        certresolver = "dns-cloudflare"
+
+[http.services]
+  [http.services.restic-svc]
+    [http.services.restic-svc.loadBalancer]
+      passHostHeader = true
+      [[http.services.restic-svc.loadBalancer.servers]]
+        url = "http://192.168.1.2:8000" # or whatever your external host's IP:port is
