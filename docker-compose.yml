@@ -160,30 +160,30 @@ services:
       - "traefik.http.routers.portainer-rtr.service=portainer-svc"
       - "traefik.http.services.portainer-svc.loadbalancer.server.port=9000"
 
-  rest-server:
-    container_name: rest-server
-    image: restic/rest-server:latest
-    restart: unless-stopped
-    networks:
-      - t2_proxy
-    security_opt:
-      - no-new-privileges:true
-    ports:
-     - "8000:8000"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - $DOCKERDIR/rest-server/data:/data 
-    environment:
-      - OPTIONS= --private-repos --append-only --path=/data
-      - TZ=$TZ
-    labels:
-      - "traefik.enable=true"
-      ## HTTP Routers
-      - "traefik.http.routers.restic-rtr.entrypoints=https"
-      - "traefik.http.routers.restic-rtr.rule=Host(`restic.$DOMAINNAME`)"
-      - "traefik.http.routers.restic-rtr.tls=true"
-      ## Middlewares
-      - "traefik.http.routers.restic-rtr.middlewares=chain-no-auth@file" 
-      ## HTTP Services
-      - "traefik.http.routers.restic-rtr.service=restic-svc"
-      - "traefik.http.services.restic-svc.loadbalancer.server.port=8000"
+  # rest-server:
+  #   container_name: rest-server
+  #   image: restic/rest-server:latest
+  #   restart: unless-stopped
+  #   networks:
+  #     - t2_proxy
+  #   security_opt:
+  #     - no-new-privileges:true
+  #   ports:
+  #    - "8000:8000"
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock:ro
+  #     - $DOCKERDIR/rest-server/data:/data 
+  #   environment:
+  #     - OPTIONS= --private-repos --append-only --path=/data
+  #     - TZ=$TZ
+  #   labels:
+  #     - "traefik.enable=true"
+  #     ## HTTP Routers
+  #     - "traefik.http.routers.restic-rtr.entrypoints=https"
+  #     - "traefik.http.routers.restic-rtr.rule=Host(`restic.$DOMAINNAME`)"
+  #     - "traefik.http.routers.restic-rtr.tls=true"
+  #     ## Middlewares
+  #     - "traefik.http.routers.restic-rtr.middlewares=chain-no-auth@file" 
+  #     ## HTTP Services
+  #     - "traefik.http.routers.restic-rtr.service=restic-svc"
+  #     - "traefik.http.services.restic-svc.loadbalancer.server.port=8000"
