@@ -4,3 +4,4 @@ traefik2/acme/*
 shared/*
 traefik2/traefik.log
 **/.htpasswd
+portainer/data/**
