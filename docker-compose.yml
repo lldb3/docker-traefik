@@ -209,4 +209,5 @@ services:
         - traefik.enable=true
         - traefik.http.routers.nginx.rule=(Host(`meln.ovh`))
         - traefik.http.routers.nginx.entrypoints=websecure
+        - traefik.http.routers.nginx.middleware="chain-no-auth@file"
 
