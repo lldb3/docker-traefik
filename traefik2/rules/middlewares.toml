@@ -33,7 +33,6 @@ browserXssFilter = true
 accessControlAllowMethods = ["GET", "OPTIONS", "PUT"]
 accessControlMaxAge = 100
 addvaryheader=true
-
 forceSTSHeader = true
 hostsProxyHeaders = ["X-Forwarded-Host"]
 # sslRedirect = true

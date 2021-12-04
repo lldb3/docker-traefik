@@ -42,9 +42,9 @@ services:
   # chmod 600 $DOCKERDIR/traefik2/acme/acme.json
   # touch $DOCKERDIR/traefik2/traefik.log
   traefik:
-    image: "traefik:v2.5"
-    #restart: always
     container_name: "traefik"
+    image: "traefik:v2.5"
+    restart: always
     networks:
       - t2_proxy
     command:
@@ -53,15 +53,18 @@ services:
       - --entryPoints.http.address=:80
       - --entryPoints.https.address=:443
       - --entryPoints.traefik.address=:8080
+      # Allow these IPs to set the X-Forwarded-* headers for load balancing / proxy use
+      # - --entrypoints.https.forwardedHeaders.trustedIPs=
       - --api=true
       # - --api.insecure=true
       - --api.dashboard=true
       - --log=true
-      #- --log.level=WARN
+      - --log.level=WARN
       - --accessLog=true
       - --accessLog.filePath=/traefik.log
-      - --accessLog.bufferingSize=1000 # Configuring a buffer of 1000 lines
-      - --accessLog.filters.statusCodes=400-499
+      - --accessLog.bufferingSize=100000 # Configuring a buffer of X lines
+      - --accessLog.filters.statusCodes=400-499,500-599 # filter on not found and errors
+      ## Providers Docker
       - --providers.docker=true
       - --providers.docker.network=t2_proxy
       - --providers.docker.endpoint=unix:///var/run/docker.sock
@@ -70,10 +73,11 @@ services:
       - --providers.docker.swarmMode=false
       - --providers.file.directory=/rules
       - --providers.file.watch=true
+      ## Cert Resolvers
       - --certificatesresolvers.ovh-resolver.acme.dnschallenge=true
       - --certificatesresolvers.ovh-resolver.acme.dnschallenge.provider=ovh
       # - --certificatesresolvers.ovh-resolver.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory
-      - --certificatesresolvers.ovh-resolver.acme.email=postmaster@meln.ovh
+      - --certificatesresolvers.ovh-resolver.acme.email=admin@meln.ovh
       - --certificatesresolvers.ovh-resolver.acme.storage=/acme/acme.json
       - --certificatesresolvers.ovh-resolver.acme.dnsChallenge.delayBeforeCheck=10
     ports:
@@ -104,7 +108,7 @@ services:
       - OVH_CONSUMER_KEY_FILE=/run/secrets/ovh_consumer_key
     volumes:
       - $DOCKERDIR/traefik2/rules:/rules 
-      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # - /var/run/docker.sock:/var/run/docker.sock:ro # Use Docker Socket Proxy instead for improved security
       - $DOCKERDIR/traefik2/acme:/acme
       - $DOCKERDIR/traefik2/traefik.log:/traefik.log 
       - $DOCKERDIR/shared:/shared
@@ -119,6 +123,7 @@ services:
       - traefik.http.routers.traefik-rtr.entrypoints=https
       - traefik.http.routers.traefik-rtr.rule=Host(`traefik.$DOMAINNAME`)
       - traefik.http.routers.traefik-rtr.tls=true
+      - traefik.http.routers.traefik-rtr.tls.options=Aplus2021@file
       #- traefik.http.routers.traefik-rtr.tls.certresolver=ovh-resolver # Comment out this line after first run of traefik to force the use of wildcard certs
       - traefik.http.routers.traefik-rtr.tls.domains[0].main=$DOMAINNAME
       - traefik.http.routers.traefik-rtr.tls.domains[0].sans=*.$DOMAINNAME
@@ -129,36 +134,121 @@ services:
       ## Middlewares
       - traefik.http.routers.traefik-rtr.middlewares=middlewares-rate-limit@file,middlewares-basic-auth@file,middlewares-secure-headers@file
 
-# Portainer - WebUI for Containers
-  portainer:
-    container_name: portainer
-    image: portainer/portainer-ce:latest
-    restart: unless-stopped
-    command: -H unix:///var/run/docker.sock
-    networks:
-      - t2_proxy
-    security_opt:
-      - no-new-privileges:true
-    ports:
-     - "$PORTAINER_PORT:9000"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - $DOCKERDIR/portainer/data:/data 
-    environment:
-      - TZ=$TZ
-    labels:
-      - "traefik.enable=true"
-      ## HTTP Routers
-      - "traefik.http.routers.portainer-rtr.entrypoints=https"
-      - "traefik.http.routers.portainer-rtr.rule=Host(`portainer.$DOMAINNAME`) || (Host(`portainer.$DOMAINNAME`) && PathPrefix(`/api`))"
-      - "traefik.http.routers.portainer-rtr.tls=true"
-      ## Middlewares
-     # - "traefik.http.routers.portainer-rtr.middlewares=chain-no-auth@file" # No Authentication
-      - "traefik.http.routers.portainer-rtr.middlewares=chain-basic-auth@file" # Basic Authentication
-#       - "traefik.http.routers.portainer-rtr.middlewares=chain-oauth@file" # Google OAuth 2.0
-      ## HTTP Services
-      - "traefik.http.routers.portainer-rtr.service=portainer-svc"
-      - "traefik.http.services.portainer-svc.loadbalancer.server.port=9000"
+
+
+# # Portainer - WebUI for Containers
+#   portainer:
+#     container_name: portainer
+#     image: portainer/portainer-ce:latest
+#     restart: unless-stopped
+#     command: -H unix:///var/run/docker.sock
+#     networks:
+#       - t2_proxy
+#     security_opt:
+#       - no-new-privileges:true
+#     ports:
+#      - "$PORTAINER_PORT:9000"
+#     volumes:
+#       - /var/run/docker.sock:/var/run/docker.sock:ro
+#       - $DOCKERDIR/portainer/data:/data 
+#     environment:
+#       - TZ=$TZ
+#     labels:
+#       - "traefik.enable=true"
+#       ## HTTP Routers
+#       - "traefik.http.routers.portainer-rtr.entrypoints=https"
+#       - "traefik.http.routers.portainer-rtr.rule=Host(`portainer.$DOMAINNAME`) || (Host(`portainer.$DOMAINNAME`) && PathPrefix(`/api`))"
+#       - "traefik.http.routers.portainer-rtr.tls=true"
+#       ## Middlewares
+#      # - "traefik.http.routers.portainer-rtr.middlewares=chain-no-auth@file" # No Authentication
+#       - "traefik.http.routers.portainer-rtr.middlewares=chain-basic-auth@file" # Basic Authentication
+# #       - "traefik.http.routers.portainer-rtr.middlewares=chain-oauth@file" # Google OAuth 2.0
+#       ## HTTP Services
+#       - "traefik.http.routers.portainer-rtr.service=portainer-svc"
+#       - "traefik.http.services.portainer-svc.loadbalancer.server.port=9000"
+
+# # MariaDB - MySQL Database
+#   maria_db:
+#     container_name: maria_db
+#     image: linuxserver/mariadb:latest
+#     restart: always
+#     networks:
+#       t2_proxy:
+#         ipv4_address: 192.168.90.250 
+#     security_opt:
+#       - no-new-privileges:true
+#     ports:
+#       - "3306:3306"
+#     volumes:
+#       - $DOCKERDIR/mariadb/data:/config
+#       - /etc/timezone:/etc/timezone:ro
+#       - /etc/localtime:/etc/localtime:ro
+#     environment:
+#       - PUID=$PUID
+#       - PGID=$PGID
+#       - MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD
+
+
+  # seafile:
+  #   image: docker.seadrive.org/seafileltd/seafile-pro-mc:latest
+  #   container_name: seafile_pro
+  #   restart: unless-stopped
+  #   networks:
+  #     - t2_proxy
+  #   security_opt:
+  #     - no-new-privileges:true
+  #   environment:
+  #     - SEAFILE_SERVER_HOSTNAME=drive.$DOMAINNAME
+  #     - SEAFILE_SERVICE_URL=https://drive.$DOMAINNAME
+  #     - SEAFILE_ADMIN_URL=postmaster@$DOMAINNAME
+  #     - SEAFILE_ADMIN_PASSWORD=$SEAFILE_ADMIN_PASS
+  #     - SEAFILE_SERVER_LETSENCRYPT=false   # Whether to use https or not
+  #     - TIME_ZONE=$TZ
+  #     - DB_HOST=maria_db
+  #     - DB_ROOT_PASSWD=$MYSQL_ROOT_PASSWORD
+  #   volumes:
+  #     - $DOCKERDIR/seafile:/shared
+  #   labels:
+  #     - traefik.enable=true
+  #     ## HTTP Routers
+  #     - "traefik.http.routers.seafile-rtr.entrypoints=https"
+  #     - "traefik.http.routers.seafile-rtr.tls=true"
+  #     - traefik.frontend.rule=Host(`seafile.$DOMAINNAME`)
+  #     ## Middlewares
+  #     - "traefik.http.routers.seafile-rtr.middlewares=chain-basic-auth@file" # Basic Authentication
+  #   depends_on:
+  #     - maria_db
+  #     - memcached
+  #     - elasticsearch
+
+  # ## Memcaching for seafile pro
+  # memcached:
+  #   image: memcached:1.5.6
+  #   container_name: seafile-memcached
+  #   security_opt:
+  #     - no-new-privileges:true
+  #   entrypoint: memcached -m 256
+  #   networks:
+  #     - t2_proxy
+
+  # ## Elastic search for seafile pro
+  # elasticsearch:
+  #   image: seafileltd/elasticsearch-with-ik:5.6.16
+  #   container_name: seafile-elasticsearch
+  #   networks:
+  #     - t2_proxy
+  #   environment:
+  #     - discovery.type=single-node
+  #     - bootstrap.memory_lock=true
+  #     - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+  #   ulimits:
+  #     memlock:
+  #       soft: -1
+  #       hard: -1
+  #   mem_limit: 2g
+  #   volumes:
+  #     - $DOCKERDIR/seafile-elasticsearch/data:/usr/share/elasticsearch/data  # Requested, specifies the path to Elasticsearch data persistent store.
+
 
   # rest-server:
   #   container_name: rest-server

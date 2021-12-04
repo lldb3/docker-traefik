@@ -13,3 +13,5 @@
       passHostHeader = true
       [[http.services.restic-svc.loadBalancer.servers]]
         url = "http://192.168.3.10:8000"
+
+
