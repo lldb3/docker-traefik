@@ -207,7 +207,7 @@ services:
     restart: unless-stopped
     labels:
         - traefik.enable=true
-        - traefik.http.routers.nginx.rule=(Host(`meln.ovh`))
+        - traefik.http.routers.nginx.rule=(Host(`$DOMAINNAME`))
         - traefik.http.routers.nginx.entrypoints=websecure
-        - traefik.http.routers.nginx.middleware="chain-no-auth@file"
+        - traefik.http.routers.nginx.middlewares=chain-no-auth@file
 
