@@ -1,9 +1,4 @@
-version: "3.6"
-
-########################### NETWORKS
-# There is no need to create any networks outside this docker-compose file.
-# You may customize the network subnets (192.168.90.0/24 and 91.0/24) below as you please.
-# Docker Compose version 3.5 or higher required to define networks this way.
+version: "3.9"
 
 ########################### SECRETS
 secrets:
@@ -16,6 +11,11 @@ secrets:
   ovh_consumer_key:
     file: "$DOCKERDIR/secrets/ovh_consumer_key"
 
+########################### NETWORKS
+# There is no need to create any networks outside this docker-compose file.
+# You may customize the network subnets (192.168.90.0/24 and 91.0/24) below as you please.
+# Docker Compose version 3.5 or higher required to define networks this way.
+
 networks:
   t2_proxy:
     name: t2_proxy
@@ -23,14 +23,14 @@ networks:
     ipam:
       config:
         - subnet: 192.168.90.0/24
-  # default:
-  #   driver: bridge
-  # socket_proxy:
-  #   name: socket_proxy
-  #   driver: bridge
-  #   ipam:
-  #     config:
-  #       - subnet: 192.168.91.0/24
+  default:
+    driver: bridge
+  socket_proxy:
+    name: socket_proxy
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.91.0/24
 
 ########################### SERVICES
 services:
@@ -45,13 +45,11 @@ services:
     container_name: "traefik"
     image: "traefik:v2.5"
     restart: always
-    networks:
-      - t2_proxy
     command:
       - --global.checkNewVersion=true
       - --global.sendAnonymousUsage=true
-      - --entryPoints.http.address=:80
-      - --entryPoints.https.address=:443
+      - --entryPoints.web.address=:80
+      - --entryPoints.websecure.address=:443
       - --entryPoints.traefik.address=:8080
       # Allow these IPs to set the X-Forwarded-* headers for load balancing / proxy use
       # - --entrypoints.https.forwardedHeaders.trustedIPs=
@@ -64,22 +62,40 @@ services:
       - --accessLog.filePath=/traefik.log
       - --accessLog.bufferingSize=100000 # Configuring a buffer of X lines
       - --accessLog.filters.statusCodes=400-499,500-599 # filter on not found and errors
-      ## Providers Docker
+      ## Providers Docker / Socket Proxy
       - --providers.docker=true
       - --providers.docker.network=t2_proxy
-      - --providers.docker.endpoint=unix:///var/run/docker.sock
-      - --providers.docker.defaultrule=Host(`{{ index .Labels "com.docker.compose.service" }}.$DOMAINNAME`)
+      #- --providers.docker.endpoint=unix:///var/run/docker.sock
+      - --providers.docker.endpoint=tcp://socket-proxy:2375
+      # Automatically set Host rule for services
+      #- --providers.docker.defaultrule=Host(`{{ index .Labels "com.docker.compose.service" }}.$DOMAINNAME`)
       - --providers.docker.exposedByDefault=false
       - --providers.docker.swarmMode=false
       - --providers.file.directory=/rules
       - --providers.file.watch=true
-      ## Cert Resolvers
+      ## TLS Options for security (A+)
+      - --entrypoints.websecure.http.tls.options=tls-opts@file
+      # Add OVH-resolver as default for all services. Enables the use of TLS on all services
+      - --entrypoints.websecure.http.tls.certresolver=ovh-resolver
+      - --entrypoints.websecure.http.tls.domains[0].main=$DOMAINNAME
+      - --entrypoints.websecure.http.tls.domains[0].sans=*.$DOMAINNAME
+      ## DNS Challenge settings
       - --certificatesresolvers.ovh-resolver.acme.dnschallenge=true
       - --certificatesresolvers.ovh-resolver.acme.dnschallenge.provider=ovh
       # - --certificatesresolvers.ovh-resolver.acme.caserver=https://acme-staging-v02.api.letsencrypt.org/directory
-      - --certificatesresolvers.ovh-resolver.acme.email=admin@meln.ovh
+      - --certificatesresolvers.ovh-resolver.acme.email=$CERT_POSTMASTER_MAIL
       - --certificatesresolvers.ovh-resolver.acme.storage=/acme/acme.json
       - --certificatesresolvers.ovh-resolver.acme.dnsChallenge.delayBeforeCheck=10
+    networks:
+      t2_proxy:
+        ipv4_address: 192.168.90.254 # You can specify a static IP
+      socket_proxy:
+    security_opt:
+      - no-new-privileges:true
+    #healthcheck:
+    #  test: ["CMD", "traefik", "healthcheck", "--ping"]
+    #  interval: 5s
+    #  retries: 3
     ports:
       - target: 80
         published: 80
@@ -93,187 +109,104 @@ services:
         published: 8080
         protocol: tcp
         mode: host
-    secrets:
-      - ovh_endpoint
-      - ovh_application_key
-      - ovh_application_secret
-      - ovh_consumer_key
-    security_opt:
-      - no-new-privileges:true # no new privileges gained by containers
-    environment:
-      - TZ=$TZ
-      - OVH_ENDPOINT_FILE=/run/secrets/ovh_endpoint
-      - OVH_APPLICATION_KEY_FILE=/run/secrets/ovh_application_key
-      - OVH_APPLICATION_SECRET_FILE=/run/secrets/ovh_application_secret
-      - OVH_CONSUMER_KEY_FILE=/run/secrets/ovh_consumer_key
     volumes:
       - $DOCKERDIR/traefik2/rules:/rules 
       # - /var/run/docker.sock:/var/run/docker.sock:ro # Use Docker Socket Proxy instead for improved security
       - $DOCKERDIR/traefik2/acme:/acme
       - $DOCKERDIR/traefik2/traefik.log:/traefik.log 
       - $DOCKERDIR/shared:/shared
+    environment:
+      - TZ=$TZ
+      - OVH_ENDPOINT_FILE=/run/secrets/ovh_endpoint
+      - OVH_APPLICATION_KEY_FILE=/run/secrets/ovh_application_key
+      - OVH_APPLICATION_SECRET_FILE=/run/secrets/ovh_application_secret
+      - OVH_CONSUMER_KEY_FILE=/run/secrets/ovh_consumer_key
+    secrets:
+      - ovh_endpoint
+      - ovh_application_key
+      - ovh_application_secret
+      - ovh_consumer_key
     labels:
       - traefik.enable=true
       # HTTP-to-HTTPS Redirect
-      - traefik.http.routers.http-catchall.entrypoints=http
-      - traefik.http.routers.http-catchall.rule=HostRegexp(`{host:.+}`)
-      - traefik.http.routers.http-catchall.middlewares=redirect-to-https
-      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https
+      - "traefik.http.routers.http-catchall.entrypoints=web"
+      - "traefik.http.routers.http-catchall.rule=HostRegexp(`{host:.+}`)"
+      - "traefik.http.routers.http-catchall.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
       # HTTP Routers
-      - traefik.http.routers.traefik-rtr.entrypoints=https
+      - traefik.http.routers.traefik-rtr.entrypoints=websecure
       - traefik.http.routers.traefik-rtr.rule=Host(`traefik.$DOMAINNAME`)
-      - traefik.http.routers.traefik-rtr.tls=true
-      - traefik.http.routers.traefik-rtr.tls.options=Aplus2021@file
-      #- traefik.http.routers.traefik-rtr.tls.certresolver=ovh-resolver # Comment out this line after first run of traefik to force the use of wildcard certs
-      - traefik.http.routers.traefik-rtr.tls.domains[0].main=$DOMAINNAME
-      - traefik.http.routers.traefik-rtr.tls.domains[0].sans=*.$DOMAINNAME
-#      - "traefik.http.routers.traefik-rtr.tls.domains[1].main=$SECONDDOMAINNAME" # Pulls main cert for second domain
-#      - "traefik.http.routers.traefik-rtr.tls.domains[1].sans=*.$SECONDDOMAINNAME" # Pulls wildcard cert for second domain
       ## Services - API
       - traefik.http.routers.traefik-rtr.service=api@internal 
       ## Middlewares
-      - traefik.http.routers.traefik-rtr.middlewares=middlewares-rate-limit@file,middlewares-basic-auth@file,middlewares-secure-headers@file
+      - traefik.http.routers.traefik-rtr.middlewares=chain-basic-auth@file
 
+  # Docker Socket Proxy - Security Enchanced Proxy for Docker Socket
+  socket-proxy:
+    container_name: socket-proxy
+    image: tecnativa/docker-socket-proxy
+    restart: always
+    # profiles:
+    # - core
+    networks:
+      socket_proxy:
+        ipv4_address: 192.168.91.254 # You can specify a static IP
+    privileged: true
+    ports:
+    - "127.0.0.1:2375:2375" # Port 2375 should only ever get exposed to the internal network. When possible use this line.
+    # I use the next line instead, as I want portainer to manage multiple docker endpoints within my home network.
+    # - "2375:2375"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    environment:
+      - LOG_LEVEL=info # debug,info,notice,warning,err,crit,alert,emerg
+      ## Variables match the URL prefix (i.e. AUTH blocks access to /auth/* parts of the API, etc.).
+      # 0 to revoke access.
+      # 1 to grant access.
+      ## Granted by Default
+      - EVENTS=1
+      - PING=1
+      - VERSION=1
+      ## Revoked by Default
+      # Security critical
+      - AUTH=0
+      - SECRETS=0
+      - POST=1 # Ouroboros
+      # Not always needed
+      - BUILD=0
+      - COMMIT=0
+      - CONFIGS=0
+      - CONTAINERS=1 # Traefik, portainer, etc.
+      - DISTRIBUTION=0
+      - EXEC=0
+      - IMAGES=1 # Portainer
+      - INFO=1 # Portainer
+      - NETWORKS=1 # Portainer
+      - NODES=0
+      - PLUGINS=0
+      - SERVICES=1 # Portainer
+      - SESSION=0
+      - SWARM=0
+      - SYSTEM=0
+      - TASKS=1 # Portaienr
+      - VOLUMES=1 # Portainer
 
+  nginx:
+    image: linuxserver/nginx
+    container_name: nginx
+    depends_on:
+      - traefik
+    networks:
+      - t2_proxy
+    security_opt:
+      - no-new-privileges:true
+    environment:
+        - TZ=$TZ
+        - PUID=1000
+        - PGID=1000
+    restart: unless-stopped
+    labels:
+        - traefik.enable=true
+        - traefik.http.routers.nginx.rule=(Host(`meln.ovh`))
+        - traefik.http.routers.nginx.entrypoints=websecure
 
-# # Portainer - WebUI for Containers
-#   portainer:
-#     container_name: portainer
-#     image: portainer/portainer-ce:latest
-#     restart: unless-stopped
-#     command: -H unix:///var/run/docker.sock
-#     networks:
-#       - t2_proxy
-#     security_opt:
-#       - no-new-privileges:true
-#     ports:
-#      - "$PORTAINER_PORT:9000"
-#     volumes:
-#       - /var/run/docker.sock:/var/run/docker.sock:ro
-#       - $DOCKERDIR/portainer/data:/data 
-#     environment:
-#       - TZ=$TZ
-#     labels:
-#       - "traefik.enable=true"
-#       ## HTTP Routers
-#       - "traefik.http.routers.portainer-rtr.entrypoints=https"
-#       - "traefik.http.routers.portainer-rtr.rule=Host(`portainer.$DOMAINNAME`) || (Host(`portainer.$DOMAINNAME`) && PathPrefix(`/api`))"
-#       - "traefik.http.routers.portainer-rtr.tls=true"
-#       ## Middlewares
-#      # - "traefik.http.routers.portainer-rtr.middlewares=chain-no-auth@file" # No Authentication
-#       - "traefik.http.routers.portainer-rtr.middlewares=chain-basic-auth@file" # Basic Authentication
-# #       - "traefik.http.routers.portainer-rtr.middlewares=chain-oauth@file" # Google OAuth 2.0
-#       ## HTTP Services
-#       - "traefik.http.routers.portainer-rtr.service=portainer-svc"
-#       - "traefik.http.services.portainer-svc.loadbalancer.server.port=9000"
-
-# # MariaDB - MySQL Database
-#   maria_db:
-#     container_name: maria_db
-#     image: linuxserver/mariadb:latest
-#     restart: always
-#     networks:
-#       t2_proxy:
-#         ipv4_address: 192.168.90.250 
-#     security_opt:
-#       - no-new-privileges:true
-#     ports:
-#       - "3306:3306"
-#     volumes:
-#       - $DOCKERDIR/mariadb/data:/config
-#       - /etc/timezone:/etc/timezone:ro
-#       - /etc/localtime:/etc/localtime:ro
-#     environment:
-#       - PUID=$PUID
-#       - PGID=$PGID
-#       - MYSQL_ROOT_PASSWORD=$MYSQL_ROOT_PASSWORD
-
-
-  # seafile:
-  #   image: docker.seadrive.org/seafileltd/seafile-pro-mc:latest
-  #   container_name: seafile_pro
-  #   restart: unless-stopped
-  #   networks:
-  #     - t2_proxy
-  #   security_opt:
-  #     - no-new-privileges:true
-  #   environment:
-  #     - SEAFILE_SERVER_HOSTNAME=drive.$DOMAINNAME
-  #     - SEAFILE_SERVICE_URL=https://drive.$DOMAINNAME
-  #     - SEAFILE_ADMIN_URL=postmaster@$DOMAINNAME
-  #     - SEAFILE_ADMIN_PASSWORD=$SEAFILE_ADMIN_PASS
-  #     - SEAFILE_SERVER_LETSENCRYPT=false   # Whether to use https or not
-  #     - TIME_ZONE=$TZ
-  #     - DB_HOST=maria_db
-  #     - DB_ROOT_PASSWD=$MYSQL_ROOT_PASSWORD
-  #   volumes:
-  #     - $DOCKERDIR/seafile:/shared
-  #   labels:
-  #     - traefik.enable=true
-  #     ## HTTP Routers
-  #     - "traefik.http.routers.seafile-rtr.entrypoints=https"
-  #     - "traefik.http.routers.seafile-rtr.tls=true"
-  #     - traefik.frontend.rule=Host(`seafile.$DOMAINNAME`)
-  #     ## Middlewares
-  #     - "traefik.http.routers.seafile-rtr.middlewares=chain-basic-auth@file" # Basic Authentication
-  #   depends_on:
-  #     - maria_db
-  #     - memcached
-  #     - elasticsearch
-
-  # ## Memcaching for seafile pro
-  # memcached:
-  #   image: memcached:1.5.6
-  #   container_name: seafile-memcached
-  #   security_opt:
-  #     - no-new-privileges:true
-  #   entrypoint: memcached -m 256
-  #   networks:
-  #     - t2_proxy
-
-  # ## Elastic search for seafile pro
-  # elasticsearch:
-  #   image: seafileltd/elasticsearch-with-ik:5.6.16
-  #   container_name: seafile-elasticsearch
-  #   networks:
-  #     - t2_proxy
-  #   environment:
-  #     - discovery.type=single-node
-  #     - bootstrap.memory_lock=true
-  #     - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
-  #   ulimits:
-  #     memlock:
-  #       soft: -1
-  #       hard: -1
-  #   mem_limit: 2g
-  #   volumes:
-  #     - $DOCKERDIR/seafile-elasticsearch/data:/usr/share/elasticsearch/data  # Requested, specifies the path to Elasticsearch data persistent store.
-
-
-  # rest-server:
-  #   container_name: rest-server
-  #   image: restic/rest-server:latest
-  #   restart: unless-stopped
-  #   networks:
-  #     - t2_proxy
-  #   security_opt:
-  #     - no-new-privileges:true
-  #   ports:
-  #    - "8000:8000"
-  #   volumes:
-  #     - /var/run/docker.sock:/var/run/docker.sock:ro
-  #     - $DOCKERDIR/rest-server/data:/data 
-  #   environment:
-  #     - OPTIONS= --private-repos --append-only --path=/data
-  #     - TZ=$TZ
-  #   labels:
-  #     - "traefik.enable=true"
-  #     ## HTTP Routers
-  #     - "traefik.http.routers.restic-rtr.entrypoints=https"
-  #     - "traefik.http.routers.restic-rtr.rule=Host(`restic.$DOMAINNAME`)"
-  #     - "traefik.http.routers.restic-rtr.tls=true"
-  #     ## Middlewares
-  #     - "traefik.http.routers.restic-rtr.middlewares=chain-no-auth@file" 
-  #     ## HTTP Services
-  #     - "traefik.http.routers.restic-rtr.service=restic-svc"
-  #     - "traefik.http.services.restic-svc.loadbalancer.server.port=8000"
