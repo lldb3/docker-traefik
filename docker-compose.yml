@@ -10,6 +10,8 @@ secrets:
     file: "$DOCKERDIR/secrets/ovh_application_secret"
   ovh_consumer_key:
     file: "$DOCKERDIR/secrets/ovh_consumer_key"
+  postgres_root_pass:
+    file: "$DOCKERDIR/secrets/postgres_root_pass"
 
 ########################### NETWORKS
 # There is no need to create any networks outside this docker-compose file.
@@ -47,7 +49,7 @@ services:
     restart: always
     command:
       - --global.checkNewVersion=true
-      - --global.sendAnonymousUsage=true
+      - --global.sendAnonymousUsage=false
       - --entryPoints.web.address=:80
       - --entryPoints.websecure.address=:443
       - --entryPoints.traefik.address=:8080
@@ -110,11 +112,11 @@ services:
         protocol: tcp
         mode: host
     volumes:
-      - $DOCKERDIR/traefik2/rules:/rules 
       # - /var/run/docker.sock:/var/run/docker.sock:ro # Use Docker Socket Proxy instead for improved security
-      - $DOCKERDIR/traefik2/acme:/acme
-      - $DOCKERDIR/traefik2/traefik.log:/traefik.log 
-      - $DOCKERDIR/shared:/shared
+      - $APPDATA_DIR/traefik2/rules:/rules 
+      - $APPDATA_DIR/traefik2/acme:/acme
+      - $APPDATA_DIR/traefik2/traefik.log:/traefik.log 
+      - $APPDATA_DIR/shared:/shared
     environment:
       - TZ=$TZ
       - OVH_ENDPOINT_FILE=/run/secrets/ovh_endpoint
@@ -159,7 +161,7 @@ services:
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
     environment:
-      - LOG_LEVEL=info # debug,info,notice,warning,err,crit,alert,emerg
+      - LOG_LEVEL=warning # debug,info,notice,warning,err,crit,alert,emerg
       ## Variables match the URL prefix (i.e. AUTH blocks access to /auth/* parts of the API, etc.).
       # 0 to revoke access.
       # 1 to grant access.
@@ -191,9 +193,11 @@ services:
       - TASKS=1 # Portaienr
       - VOLUMES=1 # Portainer
 
+  # Nginx for main site
   nginx:
     image: linuxserver/nginx
     container_name: nginx
+    restart: unless-stopped
     depends_on:
       - traefik
     networks:
@@ -204,10 +208,62 @@ services:
         - TZ=$TZ
         - PUID=1000
         - PGID=1000
-    restart: unless-stopped
     labels:
         - traefik.enable=true
         - traefik.http.routers.nginx.rule=(Host(`$DOMAINNAME`))
         - traefik.http.routers.nginx.entrypoints=websecure
         - traefik.http.routers.nginx.middlewares=chain-no-auth@file
+  
+  # Gittea because gitlab is too heavy
+  gitea:
+    image: gitea/gitea:latest
+    container_name: gitea
+    restart: always
+    networks:
+      - t2_proxy
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - gitea-postgres
+    secrets:
+      - postgres_root_pass
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+      - DOMAIN=git.$DOMAINNAME
+      - SSH_DOMAIN=git.$DOMAINNAME
+      - DISABLE_REGISTRATION=true ## should be on if you don't want anyone to register
+      - GITEA__database__DB_TYPE=postgres
+      - GITEA__database__HOST=gitea-postgres:5432
+      - GITEA__database__NAME=gitea
+      - GITEA__database__USER=$POSTGRES_USER
+      - GITEA__database__PASSWD=/run/secrets/postgres_root_pass
+    volumes:
+      - $APPDATA_DIR/gitea:/data
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    labels:
+        - traefik.enable=true
+        - traefik.http.routers.gitea.rule=(Host(`git.$DOMAINNAME`))
+        - traefik.http.routers.gitea.entrypoints=websecure
+        - traefik.http.routers.gitea.middlewares=chain-no-auth@file
+        - traefik.http.services.gitea.loadbalancer.server.port=3000
+  
+  ## Postgres for gitea
+  gitea-postgres:
+    image: postgres:latest
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - POSTGRES_USER=$POSTGRES_USER
+      - POSTGRES_PASSWORD=/run/secrets/postgres_root_pass
+      - POSTGRES_DB=gitea
+    networks:
+      - t2_proxy
+    secrets:
+      - postgres_root_pass
+    volumes:
+      - $APPDATA_DIR/postgres:/var/lib/postgresql/data
 
+      

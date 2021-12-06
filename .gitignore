@@ -4,3 +4,4 @@ data/traefik2/acme/*
 data/traefik2/traefik.log
 data/shared/.htpasswd
 data/portainer/data
+data/gitea
