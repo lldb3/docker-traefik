@@ -1,7 +1,6 @@
 secrets/*
-traefik2/acme/*
 .env
-shared/*
-traefik2/traefik.log
-**/.htpasswd
-portainer/data/**
+data/traefik2/acme/*
+data/traefik2/traefik.log
+data/shared/.htpasswd
+data/portainer/data
