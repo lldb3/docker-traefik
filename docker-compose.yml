@@ -225,11 +225,13 @@ services:
       - no-new-privileges:true
     depends_on:
       - gitea-postgres
+    ports:
+      - 127.0.0.1:2222:22 # only open the port locally, the system ssh daemon handles the rest
     secrets:
       - postgres_root_pass
     environment:
-      - USER_UID=1000
-      - USER_GID=1000
+      - USER_UID=$GIT_UID
+      - USER_GID=$GIT_GID
       - DOMAIN=git.$DOMAINNAME
       - SSH_DOMAIN=git.$DOMAINNAME
       - DISABLE_REGISTRATION=true ## should be on if you don't want anyone to register
@@ -239,6 +241,7 @@ services:
       - GITEA__database__USER=$POSTGRES_USER
       - GITEA__database__PASSWD=/run/secrets/postgres_root_pass
     volumes:
+      - $GIT_USER_SSH_FOLDER:/data/git/.ssh ## this is to map a local user ssh key to the container one
       - $APPDATA_DIR/gitea:/data
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
