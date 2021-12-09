@@ -107,10 +107,10 @@ services:
         published: 443
         protocol: tcp
         mode: host
-      - target: 8080
-        published: 8080
-        protocol: tcp
-        mode: host
+      # - target: 8080
+      #   published: 8080
+      #   protocol: tcp
+      #   mode: host
     volumes:
       # - /var/run/docker.sock:/var/run/docker.sock:ro # Use Docker Socket Proxy instead for improved security
       - $APPDATA_DIR/traefik2/rules:/rules 
@@ -226,7 +226,8 @@ services:
     depends_on:
       - gitea-postgres
     ports:
-      - 127.0.0.1:2222:22 # only open the port locally, the system ssh daemon handles the rest
+      # - 127.0.0.1:2222:22 # only open the port locally, then perform ssh forwarding
+      - 22:22 # easier way to handle git ssh, works only if you change the default sshd port on the host
     secrets:
       - postgres_root_pass
     environment:
