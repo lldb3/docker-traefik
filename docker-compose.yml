@@ -228,15 +228,18 @@ services:
       - gitea-postgres
     ports:
       # - 127.0.0.1:2222:22 # only open the port locally, then perform ssh forwarding
-      - 22:22 # easier way to handle git ssh, works only if you change the default sshd port on the host
+      - "2222:22" # easier way to handle git ssh, works only if you change the default sshd port on the host
     secrets:
       - postgres_root_pass
-    environment:
-      # Change UID depending on your permissions scheme, no value will create files with root permissions
-      - USER_UID=$PUID
-      - USER_GID=$PGID
+    environment: ## https://docs.gitea.io/en-us/config-cheat-sheet/ 
+      # Change UID depending on your permissions scheme, no value will create files with root permissions which might be a security issue
+      - USER_UID=$PUID 
+      - USER_GID=$PUID # using the same as the UID of use here
       - DOMAIN=git.$DOMAINNAME
       - SSH_DOMAIN=git.$DOMAINNAME
+      - SSH_PORT=2222 # SSH port displayed in clone URL
+      - SSH_LISTEN_PORT=22 # SSH port the container listens on
+      - ROOT_URL=https://git.$DOMAINNAME  # change if needed, this overwrites the automatically generated public URL 
       - DISABLE_REGISTRATION=true ## should be on if you don't want anyone to register
       - GITEA__database__DB_TYPE=postgres
       - GITEA__database__HOST=gitea-postgres:5432
@@ -245,6 +248,8 @@ services:
       # this should be different in other scenarios where other services use the db
       - GITEA__database__USER=$POSTGRES_USER
       - GITEA__database__PASSWD=/run/secrets/postgres_root_pass
+      ## log to a file with default options
+      - GITEA__log__MODE=file
     volumes:
       - $APPDATA_DIR/gitea:/data
       # uncomment bellow when using ssh passthrough
@@ -252,11 +257,11 @@ services:
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
     labels:
-        - traefik.enable=true
-        - traefik.http.routers.gitea.rule=(Host(`git.$DOMAINNAME`))
-        - traefik.http.routers.gitea.entrypoints=websecure
-        - traefik.http.routers.gitea.middlewares=chain-no-auth@file
-        - traefik.http.services.gitea.loadbalancer.server.port=3000
+      - traefik.enable=true
+      - traefik.http.routers.gitea.rule=(Host(`git.$DOMAINNAME`))
+      - traefik.http.routers.gitea.entrypoints=websecure
+      - traefik.http.routers.gitea.middlewares=chain-no-auth@file
+      - traefik.http.services.gitea.loadbalancer.server.port=3000
   
   ## Postgres for gitea
   gitea-postgres:
