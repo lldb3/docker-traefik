@@ -25,14 +25,16 @@ Put the hash in an `.htpasswd` file in the `shared` directory, or as a secret.
 **Note:** if you use the docker-compose file to pass the password hash, you should escape the `$` signs with `$$`. You can do that in a single oneliner: `echo $(htpasswd -nb username mystrongpassword) | sed -e s/\\$/\\$\\$/g`,
 
 
-#### Security Headers as Labels
+#### A+ Certification from SslLabs.com
 
-/TODO
+In order to stay compliant with latest security recommendations, we should change the TLS options applied to our entrypoint (*websecure*). The exact configuration is available in the [tls-opts.yml file](./config/traefik2/rules/tls-opts.yml).
+
+Moreover, once a valid certificate is obtained for your server, you should add a [CAA Record](https://letsencrypt.org/docs/caa/) to your DNS.
 
 #### Restic Rest-server
 
 NB: add `.htpasswd` in rest-server folder in order to use authentication, or specify the `--no-auth` flag in OPTIONS.
 Test the config using the restic client as such: `restic -r rest:https://user:pass@restic.$DOMAINNAME:443/user init`. The user and pass should be configured, and the '443' option can be ommited as the `https` option provides the value.
 
-For **TLS**, it is not needed as trefik handles it for you.
+For **TLS**, it is not needed as traefik handles it for you.
 
