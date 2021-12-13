@@ -46,7 +46,7 @@ services:
   # touch $APPDATA_DIR/traefik2/traefik.log
   traefik:
     container_name: "traefik"
-    image: "traefik:v2.5"
+    image: "traefik:latest"
     restart: always
     command:
       - --global.checkNewVersion=true
