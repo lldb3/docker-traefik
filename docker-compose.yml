@@ -214,6 +214,9 @@ services:
         - traefik.http.routers.nginx.rule=(Host(`$DOMAINNAME`))
         - traefik.http.routers.nginx.entrypoints=websecure
         - traefik.http.routers.nginx.middlewares=chain-no-auth@file
+    volumes:
+      - $APPDATA_DIR/nginx/site.html:/usr/share/nginx/html/index.html
+      
   
   # Gittea because gitlab is too heavy
   gitea:
