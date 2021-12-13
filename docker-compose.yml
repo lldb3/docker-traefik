@@ -138,7 +138,7 @@ services:
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
       # HTTP Routers
       - traefik.http.routers.traefik-rtr.entrypoints=websecure
-      - traefik.http.routers.traefik-rtr.rule=Host(`traefik.$DOMAINNAME`)
+      - traefik.http.routers.traefik-rtr.rule=(Host(`traefik.$DOMAINNAME`) || Host(`www.traefik.$DOMAINNAME`))
       ## Services - API
       - traefik.http.routers.traefik-rtr.service=api@internal 
       ## Middlewares
@@ -211,7 +211,7 @@ services:
       - PGID=$PGID
     labels:
       - traefik.enable=true
-      - traefik.http.routers.nginx.rule=(Host(`$DOMAINNAME`))
+      - traefik.http.routers.nginx.rule=(Host(`$DOMAINNAME`) || Host(`www.$DOMAINNAME`))
       - traefik.http.routers.nginx.entrypoints=websecure
       - traefik.http.routers.nginx.middlewares=chain-no-auth@file
     volumes:
