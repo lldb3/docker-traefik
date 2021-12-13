@@ -12,6 +12,8 @@ secrets:
     file: "$DOCKERDIR/secrets/ovh_consumer_key"
   postgres_root_pass:
     file: "$DOCKERDIR/secrets/postgres_root_pass"
+  mysql_root_pass:
+    file: "$DOCKERDIR/secrets/mysql_root_pass"
 
 ########################### NETWORKS
 # There is no need to create any networks outside this docker-compose file.
@@ -92,7 +94,7 @@ services:
     networks:
       t2_proxy:
         ipv4_address: 192.168.90.254 # You can specify a static IP
-      socket_proxy:
+      socket_proxy: null
     security_opt:
       - no-new-privileges:true
     #healthcheck:
@@ -117,7 +119,7 @@ services:
       - $CONFIG_DIR/traefik2/rules:/rules
       - $CONFIG_DIR/shared:/shared
       - $APPDATA_DIR/traefik2/acme:/acme
-      - $APPDATA_DIR/traefik2/traefik.log:/traefik.log 
+      - $APPDATA_DIR/traefik2/traefik.log:/traefik.log
     environment:
       - TZ=$TZ
       - OVH_ENDPOINT_FILE=/run/secrets/ovh_endpoint
@@ -138,9 +140,10 @@ services:
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
       # HTTP Routers
       - traefik.http.routers.traefik-rtr.entrypoints=websecure
-      - traefik.http.routers.traefik-rtr.rule=(Host(`traefik.$DOMAINNAME`) || Host(`www.traefik.$DOMAINNAME`))
+      - traefik.http.routers.traefik-rtr.rule=(Host(`traefik.$DOMAINNAME`) ||
+        Host(`www.traefik.$DOMAINNAME`))
       ## Services - API
-      - traefik.http.routers.traefik-rtr.service=api@internal 
+      - traefik.http.routers.traefik-rtr.service=api@internal
       ## Middlewares
       - traefik.http.routers.traefik-rtr.middlewares=chain-basic-auth@file
 
@@ -156,9 +159,9 @@ services:
         ipv4_address: 192.168.91.254 # You can specify a static IP
     privileged: true
     ports:
-    - "127.0.0.1:2375:2375" # Port 2375 should only ever get exposed to the internal network. When possible use this line.
-    # I use the next line instead, as I want portainer to manage multiple docker endpoints within my home network.
-    # - "2375:2375"
+      - "127.0.0.1:2375:2375" # Port 2375 should only ever get exposed to the internal network. When possible use this line.
+      # I use the next line instead, as I want portainer to manage multiple docker endpoints within my home network.
+      # - "2375:2375"
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock"
     environment:
@@ -211,12 +214,68 @@ services:
       - PGID=$PGID
     labels:
       - traefik.enable=true
-      - traefik.http.routers.nginx.rule=(Host(`$DOMAINNAME`) || Host(`www.$DOMAINNAME`))
+      - traefik.http.routers.nginx.rule=(Host(`$DOMAINNAME`) ||
+        Host(`www.$DOMAINNAME`))
       - traefik.http.routers.nginx.entrypoints=websecure
       - traefik.http.routers.nginx.middlewares=chain-no-auth@file
     volumes:
       - $APPDATA_DIR/nginx/nginx:/config/nginx # Configuration
-      - $APPDATA_DIR/nginx/www:/data/www # Site content
+      - $APPDATA_DIR/nginx/www:/config/www # Site content
       - $APPDATA_DIR/nginx/log:/config/log # Logs
       # - $APPDATA_DIR/nginx:/config # optionally mount all the config dir, it has the logs, www data, and configs
 
+  # seafile-db:
+  #   image: mariadb:10.5
+  #   container_name: seafile-mysql
+  #   restart: unless-stopped
+  #   security_opt:
+  #     - no-new-privileges:true
+  #   secrets:
+  #     - mysql_root_pass
+  #   environment:
+  #     - MYSQL_ROOT_PASSWORD=/run/secrets/mysql_root_pass
+  #     - MYSQL_LOG_CONSOLE=true
+  #   volumes:
+  #     - /opt/seafile-mysql/db:/var/lib/mysql # Requested, specifies the path to MySQL data persistent store.
+  #   networks:
+  #     - t2_proxy
+
+  # seafile-memcached:
+  #   image: memcached:1.5.6
+  #   container_name: seafile-memcached
+  #   restart: unless-stopped
+  #   entrypoint: memcached -m 256
+  #   security_opt:
+  #     - no-new-privileges:true
+  #   networks:
+  #     - t2_proxy
+
+  # seafile:
+  #   image: seafileltd/seafile-mc:latest
+  #   container_name: seafile
+  #   restart: unless-stopped
+  #   security_opt:
+  #     - no-new-privileges:true
+  #   depends_on:
+  #     - seafile-db
+  #     - seafile-memcached
+  #   networks:
+  #     - t2_proxy
+  #   secrets:
+  #     - mysql_root_pass
+  #   volumes:
+  #     - $APPDATA_DIR/seafile/transferable-data:/shared
+  #   environment:
+  #     - DB_HOST=db
+  #     - DB_ROOT_PASSWD=/run/secrets/mysql_root_pass
+  #     - TIME_ZONE=$TZ
+  #     - SEAFILE_ADMIN_EMAIL=$GENERAL_ACCOUNT_EMAIL
+  #     - SEAFILE_ADMIN_PASSWORD=tototruffe123
+  #     - SEAFILE_SERVER_LETSENCRYPT=false # Whether to use https or not.
+  #     - SEAFILE_SERVER_HOSTNAME=hlmt.fr # Specifies your host name if https is enabled.
+  #   labels:
+  #     - traefik.enable=true
+  #     - traefik.http.routers.seafile.rule=(Host(`drive.$DOMAINNAME`) ||
+  #       Host(`www.drive.$DOMAINNAME`))
+  #     - traefik.http.routers.seafile.entrypoints=websecure
+  #     - traefik.http.routers.seafile.middlewares=chain-no-auth@file
