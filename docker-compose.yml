@@ -206,13 +206,17 @@ services:
     security_opt:
       - no-new-privileges:true
     environment:
-        - TZ=$TZ
-        - PUID=$PUID
-        - PGID=$PGID
+      - TZ=$TZ
+      - PUID=$PUID
+      - PGID=$PGID
     labels:
-        - traefik.enable=true
-        - traefik.http.routers.nginx.rule=(Host(`$DOMAINNAME`))
-        - traefik.http.routers.nginx.entrypoints=websecure
-        - traefik.http.routers.nginx.middlewares=chain-no-auth@file
+      - traefik.enable=true
+      - traefik.http.routers.nginx.rule=(Host(`$DOMAINNAME`))
+      - traefik.http.routers.nginx.entrypoints=websecure
+      - traefik.http.routers.nginx.middlewares=chain-no-auth@file
     volumes:
-      - $APPDATA_DIR/nginx/site.html:/usr/share/nginx/html/index.html
+      - $APPDATA_DIR/nginx/nginx:/config/nginx # Configuration
+      - $APPDATA_DIR/nginx/www:/data/www # Site content
+      - $APPDATA_DIR/nginx/log:/config/log # Logs
+      # - $APPDATA_DIR/nginx:/config # optionally mount all the config dir, it has the logs, www data, and configs
+
