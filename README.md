@@ -6,7 +6,7 @@ This repo contains some template work for a simple to more advanced config using
 
 The configuration is provided as an example, and is derived from [this work](https://www.smarthomebeginner.com/traefik-2-docker-tutorial/#Traefik_2_Configuration), repo available [here](https://github.com/htpcBeginner/docker-traefik).
 
-
+**TODO: in need of a rewrite**
 ### Directory structure
 
 * traefik2 - contains all info for the traefik config

@@ -1,4 +1,5 @@
 secrets/*
 .env
 appdata/*
-config/shared
+config/nextcloud/config
+*.code-workspace
