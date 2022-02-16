@@ -246,6 +246,8 @@ services:
     restart: unless-stopped
     depends_on:
       - traefik
+      - nextcloud-db
+      - nextcloud-redis
     security_opt:
       - no-new-privileges:true
     networks:
@@ -255,7 +257,7 @@ services:
       - $APPDATA_DIR/nextcloud/custom_apps:/var/www/html/custom_apps
       - $CONFIG_DIR/nextcloud/themes:/var/www/html/themes
       - $CONFIG_DIR/nextcloud/config:/var/www/html/config
-      - $NC_DATA:/var/www/html/data
+      - $NC_DATA:/var/www/html/data  ## Important: the install may fail, in this case use chgrp www-data on the NC_DATA directory
     labels:
       - traefik.enable=true
       - traefik.http.routers.nextcloud.rule=(Host(`drive.$DOMAINNAME`) ||
@@ -283,14 +285,15 @@ services:
       - SMTP_PASSWORD_FILE=/run/secrets/mailgun_password
       - MAIL_FROM_ADDRESS=no-reply
       - MAIL_DOMAIN=$DOMAINNAME
+      # REDIS
+      - REDIS_HOST=nextcloud-redis
+      - REDIS_HOST_PASSWORD=$REDIS_PASSWORD
 
   nextcloud-db:
     container_name: nextcloud-db
     hostname: nextcloud-db
     image: postgres:latest
     restart: unless-stopped
-    depends_on:
-      - traefik
     security_opt:
       - no-new-privileges:true
     networks:
@@ -302,6 +305,19 @@ services:
     volumes:
       - $APPDATA_DIR/nextcloud-postgres:/var/lib/postgresql/data
 
+  nextcloud-redis:
+    image: redis
+    hostname: nextcloud-redis
+    container_name: nextcloud-redis
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - t2_proxy
+    volumes:
+      - $APPDATA_DIR/nextcloud-redis:/data
+    command: redis-server --requirepass $REDIS_PASSWORD
+    
 
 #### 
  

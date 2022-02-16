@@ -27,6 +27,8 @@ In order to stay compliant with latest security recommendations, we should chang
 
 Moreover, once a valid certificate is obtained for your server, you should add a [CAA Record](https://letsencrypt.org/docs/caa/) to your DNS.
 
+***Note: *** These recommendations change over time, see [Mozilla's awesome configurator](https://ssl-config.mozilla.org/) for updates.
+
 ### Authentication
 
 #### Basic Auth
@@ -40,6 +42,16 @@ Put the hash in an `.htpasswd` file in the `shared` directory, or as a secret.
 
 
 ## Service Notes
+
+### Nextcloud
+
+Does not work properly until we change the `config.php` file with bellow options
+
+```php
+'overwriteprotocol' => 'https',
+'overwrite.cli.url' => 'https://NEXTCLOUDDOMAIN',
+
+```
 ### Restic Rest-server
 
 NB: add `.htpasswd` in rest-server folder in order to use authentication, or specify the `--no-auth` flag in OPTIONS.
@@ -55,3 +67,10 @@ For **TLS**, it is not needed as traefik handles it for you.
 - More nextcloud config to remove .caldav warnings
 - Documentation and deployment of other auth systems (2FA, authelia)
 - GitLab 
+
+### Need attention
+
+```
+# redis
+vm.overcommit_memory = 1' to /etc/sysctl.conf
+```
