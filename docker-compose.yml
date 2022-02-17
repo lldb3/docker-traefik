@@ -276,10 +276,14 @@ services:
       - NEXTCLOUD_ADMIN_PASSWORD=$NC_ADMIN_PASSWORD
       # Optional space-separated list of domains, handy with our reverse proxy config 
       - NEXTCLOUD_TRUSTED_DOMAINS=drive.$DOMAINNAME
+      ## Extra variable to get nextcloud working out of the box with reverse proxy
+      - OVERWRITEPROTOCOL=https
+      #- OVERWRITE__CLI__URL=https://drive.$DOMAINNAME
       ## SMTP Config, using MailGun
       - SMTP_HOST=smtp.eu.mailgun.org
       - SMTP_SECURE=tls
       - SMTP_PORT=587
+      - SMTP_AUTH=true
       - SMTP_AUTHTYPE=LOGIN
       - SMTP_NAME=$MAILGUN_USERNAME
       - SMTP_PASSWORD_FILE=/run/secrets/mailgun_password
