@@ -41,3 +41,5 @@ http:
         customResponseHeaders:
           X-Robots-Tag: "none,noarchive,nosnippet,notranslate,noimageindex,"
           server: ""
+          X-Frame-Options: "SAMEORIGIN"
+

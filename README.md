@@ -64,6 +64,7 @@ For **TLS**, it is not needed as traefik handles it for you.
 - Use a custom config file for redis-server
 - Change the defaults on the socket-proxy
 - Change defaul HTTP headers for nextcloud in order to solve "X-Forwarded-For" issues
+- Harden nextcloud: https://docs.nextcloud.com/server/latest/admin_manual/installation/harden_server.html 
 - More nextcloud config to remove .caldav warnings
 - Documentation and deployment of other auth systems (2FA, authelia)
 - GitLab 
