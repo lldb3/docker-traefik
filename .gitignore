@@ -3,4 +3,4 @@ secrets/*
 appdata/*
 config/nextcloud/config
 *.code-workspace
-config/traefik2/rules/external-services.yml
+config/traefik2/rules/*.yml
