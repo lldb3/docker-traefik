@@ -239,7 +239,7 @@ services:
       - traefik.http.routers.nextcloud.rule=(Host(`drive.$DOMAINNAME`) ||
         Host(`www.drive.$DOMAINNAME`))
       - traefik.http.routers.nextcloud.entrypoints=websecure
-      - traefik.http.routers.nextcloud.middlewares=chain-no-auth@file
+      - traefik.http.routers.nextcloud.middlewares=chain-no-auth@file,nextcloud-redirectregex@file
     secrets:
       - mailgun_password
     environment:
