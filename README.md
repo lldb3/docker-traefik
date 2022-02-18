@@ -51,22 +51,13 @@ Does not work properly until we change the `config.php` file with bellow options
 'overwriteprotocol' => 'https',
 'overwrite.cli.url' => 'https://NEXTCLOUDDOMAIN'
 ```
-### Restic Rest-server
-
-NB: add `.htpasswd` in rest-server folder in order to use authentication, or specify the `--no-auth` flag in OPTIONS.
-Test the config using the restic client as such: `restic -r rest:https://user:pass@restic.$DOMAINNAME:443/user init`. The user and pass should be configured, and the '443' option can be ommited as the `https` option provides the value.
-
-For **TLS**, it is not needed as traefik handles it for you.
 
 ## TODOs
 
-- Use a custom config file for redis-server
-- Change the defaults on the socket-proxy
 - Change defaul HTTP headers for nextcloud in order to solve "X-Forwarded-For" issues
 - Harden nextcloud: https://docs.nextcloud.com/server/latest/admin_manual/installation/harden_server.html 
 - More nextcloud config to remove .caldav warnings
 - Documentation and deployment of other auth systems (2FA, authelia)
-- GitLab 
 
 ### Need attention
 
