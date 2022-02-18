@@ -49,8 +49,7 @@ Does not work properly until we change the `config.php` file with bellow options
 
 ```php
 'overwriteprotocol' => 'https',
-'overwrite.cli.url' => 'https://NEXTCLOUDDOMAIN',
-
+'overwrite.cli.url' => 'https://NEXTCLOUDDOMAIN'
 ```
 ### Restic Rest-server
 

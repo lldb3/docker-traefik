@@ -175,17 +175,17 @@ services:
       - CONTAINERS=1 # Traefik, portainer, etc.
       - DISTRIBUTION=0
       - EXEC=0
-      - IMAGES=1 # Portainer
-      - INFO=1 # Portainer
-      - NETWORKS=1 # Portainer
+      - IMAGES=0 # Portainer
+      - INFO=0 # Portainer
+      - NETWORKS=0 # Portainer
       - NODES=0
       - PLUGINS=0
-      - SERVICES=1 # Portainer
+      - SERVICES=0 # Portainer
       - SESSION=0
       - SWARM=0
       - SYSTEM=0
-      - TASKS=1 # Portaienr
-      - VOLUMES=1 # Portainer
+      - TASKS=0 # Portaienr
+      - VOLUMES=0 # Portainer
 
   # Nginx for main site
   nginx:
@@ -214,30 +214,6 @@ services:
       - $APPDATA_DIR/nginx/log:/config/log # Logs
       # - $APPDATA_DIR/nginx:/config # optionally mount all the config dir, it has the logs, www data, and configs
 
-
-  rest-server:
-    container_name: rest-server
-    image: restic/rest-server:latest
-    restart: unless-stopped
-    security_opt:
-      - no-new-privileges:true
-    # ports:
-    #  - "8000:8000"
-    depends_on:
-      - traefik
-    networks:
-      - t2_proxy
-    volumes:
-      - $RESTIC_BACKUP_PATH:/data
-    labels:
-        - traefik.enable=true
-        - traefik.http.routers.restic.rule=(Host(`restic.$DOMAINNAME`) ||
-          Host(`www.restic.$DOMAINNAME`))
-        - traefik.http.routers.restic.entrypoints=websecure
-        - traefik.http.routers.restic.middlewares=chain-no-auth@file
-    environment:
-      - OPTIONS=  --path=/data --append-only --private-repos
-      - TZ=$TZ
 
 ################################ NEXTCLOUD 
   nextcloud:
