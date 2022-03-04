@@ -1,0 +1,461 @@
+version: "3.7"
+
+########################### SECRETS
+secrets:
+  htpasswd:
+    file: "$DOCKERDIR/secrets/htpasswd"
+  cloudflare_api_token: 
+    file: "$DOCKERDIR/secrets/cloudflare_api_token"
+  mailgun_password: 
+    file: "$DOCKERDIR/secrets/mailgun_password"
+
+########################### NETWORKS
+# There is no need to create any networks outside this docker-compose file.
+# You may customize the network subnets (192.168.90.0/24 and 91.0/24) below as you please.
+# Docker Compose version 3.5 or higher required to define networks this way.
+
+networks:
+  t2_proxy:
+    name: t2_proxy
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.90.0/24
+  default:
+    driver: bridge
+  socket_proxy:
+    name: socket_proxy
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 192.168.91.0/24
+
+########################### SERVICES
+services:
+  ############################# FRONTENDS
+
+  # Traefik 2 - Reverse Proxy
+  # Touch (create empty files) traefik.log and acme/acme.json. Set acme.json permissions to 600.
+  # mkdir $APPDATA_DIR/traefik2/acme
+  # touch $APPDATA_DIR/traefik2/acme/acme.json
+  # chmod 600 $APPDATA_DIR/traefik2/acme/acme.json
+  # touch $APPDATA_DIR/traefik2/traefik.log
+  traefik:
+    container_name: "traefik"
+    image: "traefik:latest"
+    restart: always
+    command:
+      - --global.checkNewVersion=true
+      - --global.sendAnonymousUsage=false
+      - --entryPoints.web.address=:80
+      - --entryPoints.websecure.address=:443
+      - --entryPoints.traefik.address=:8080
+      # Allow these IPs to set the X-Forwarded-* headers - Cloudflare IPs: https://www.cloudflare.com/ips/
+      - --entrypoints.https.forwardedHeaders.trustedIPs=173.245.48.0/20,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,141.101.64.0/18,108.162.192.0/18,190.93.240.0/20,188.114.96.0/20,197.234.240.0/22,198.41.128.0/17,162.158.0.0/15,104.16.0.0/13,104.24.0.0/14,172.64.0.0/13,131.0.72.0/22
+      - --api=true
+      # - --api.insecure=true
+      - --api.dashboard=true
+      - --log=true
+      - --log.level=WARN
+      - --accessLog=true
+      - --accessLog.filePath=/traefik.log
+      - --accessLog.bufferingSize=100000 # Configuring a buffer of X lines
+      - --accessLog.filters.statusCodes=400-499,500-599 # filter on not found and errors
+      ## Providers Docker / Socket Proxy
+      - --providers.docker=true
+      - --providers.docker.network=t2_proxy
+      #- --providers.docker.endpoint=unix:///var/run/docker.sock
+      - --providers.docker.endpoint=tcp://socket-proxy:2375
+      # Automatically set Host rule for services
+      #- --providers.docker.defaultrule=Host(`{{ index .Labels "com.docker.compose.service" }}.$DOMAINNAME`)
+      - --providers.docker.exposedByDefault=false
+      - --providers.docker.swarmMode=false
+      - --providers.file.directory=/rules
+      - --providers.file.watch=true
+      ## TLS Options for security (A+)
+      - --entrypoints.websecure.http.tls.options=tls-opts@file
+      # Add dns-cloudflare as default for all services. Enables the use of TLS on all services
+      - --entrypoints.websecure.http.tls.certresolver=dns-cloudflare
+      - --entrypoints.websecure.http.tls.domains[0].main=$DOMAINNAME
+      - --entrypoints.websecure.http.tls.domains[0].sans=*.$DOMAINNAME
+      ## DNS Challenge settings
+      #- --certificatesResolvers.dns-cloudflare.acme.caServer=https://acme-staging-v02.api.letsencrypt.org/directory # LetsEncrypt Staging Server - uncomment when testing
+      - --certificatesResolvers.dns-cloudflare.acme.dnsChallenge=true
+      - --certificatesResolvers.dns-cloudflare.acme.dnsChallenge.provider=cloudflare
+      - --certificatesResolvers.dns-cloudflare.acme.email=$CERT_POSTMASTER_MAIL 
+      - --certificatesResolvers.dns-cloudflare.acme.storage=/acme/acme.json
+      - --certificatesResolvers.dns-cloudflare.acme.dnsChallenge.resolvers=1.1.1.1:53,1.0.0.1:53
+      - --certificatesResolvers.dns-cloudflare.acme.dnsChallenge.delayBeforeCheck=10
+    networks:
+      t2_proxy:
+        ipv4_address: 192.168.90.254 # You can specify a static IP
+      socket_proxy: null
+    security_opt:
+      - no-new-privileges:true
+    #healthcheck:
+    #  test: ["CMD", "traefik", "healthcheck", "--ping"]
+    #  interval: 5s
+    #  retries: 3
+    ports:
+      - target: 80
+        published: 80
+        protocol: tcp
+        mode: host
+      - target: 443
+        published: 443
+        protocol: tcp
+        mode: host
+      # - target: 8080
+      #   published: 8080
+      #   protocol: tcp
+      #   mode: host
+    volumes:
+      # - /var/run/docker.sock:/var/run/docker.sock:ro # Use Docker Socket Proxy instead for improved security
+      - $CONFIG_DIR/traefik2/rules:/rules
+      - $APPDATA_DIR/traefik2/acme:/acme
+      - $APPDATA_DIR/traefik2/traefik.log:/traefik.log
+    environment:
+      - TZ=$TZ
+      - CLOUDFLARE_DNS_API_TOKEN_FILE=/run/secrets/cloudflare_api_token 
+      - HTPASSWD_FILE=/run/secrets/htpasswd # HTPASSWD_FILE can be whatever as it is not used/called anywhere.
+    secrets:
+      - cloudflare_api_token
+      - htpasswd
+    labels:
+      - traefik.enable=true
+      # HTTP-to-HTTPS Redirect
+      - "traefik.http.routers.http-catchall.entrypoints=web"
+      - "traefik.http.routers.http-catchall.rule=HostRegexp(`{host:.+}`)"
+      - "traefik.http.routers.http-catchall.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      # HTTP Routers
+      - traefik.http.routers.traefik-rtr.entrypoints=websecure
+      - traefik.http.routers.traefik-rtr.rule=(Host(`traefik.$DOMAINNAME`) ||
+        Host(`www.traefik.$DOMAINNAME`))
+      ## Services - API
+      - traefik.http.routers.traefik-rtr.service=api@internal
+      ## Middlewares
+      - traefik.http.routers.traefik-rtr.middlewares=chain-basic-auth@file
+
+  # Docker Socket Proxy - Security Enchanced Proxy for Docker Socket
+  socket-proxy:
+    container_name: socket-proxy
+    image: tecnativa/docker-socket-proxy
+    restart: always
+    # profiles:
+    # - core
+    networks:
+      socket_proxy:
+        ipv4_address: 192.168.91.254 # You can specify a static IP
+    privileged: true
+    ports:
+      - "127.0.0.1:2375:2375" # Port 2375 should only ever get exposed to the internal network. When possible use this line.
+      # I use the next line instead, as I want portainer to manage multiple docker endpoints within my home network.
+      # - "2375:2375"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    environment:
+      - LOG_LEVEL=warning # debug,info,notice,warning,err,crit,alert,emerg
+      ## Variables match the URL prefix (i.e. AUTH blocks access to /auth/* parts of the API, etc.).
+      # 0 to revoke access.
+      # 1 to grant access.
+      ## Granted by Default
+      - EVENTS=1
+      - PING=1
+      - VERSION=1
+      ## Revoked by Default
+      # Security critical
+      - AUTH=0
+      - SECRETS=0
+      - POST=1 # Ouroboros
+      # Not always needed
+      - BUILD=0
+      - COMMIT=0
+      - CONFIGS=0
+      - CONTAINERS=1 # Traefik, portainer, etc.
+      - DISTRIBUTION=0
+      - EXEC=0
+      - IMAGES=0 # Portainer
+      - INFO=0 # Portainer
+      - NETWORKS=0 # Portainer
+      - NODES=0
+      - PLUGINS=0
+      - SERVICES=0 # Portainer
+      - SESSION=0
+      - SWARM=0
+      - SYSTEM=0
+      - TASKS=0 # Portaienr
+      - VOLUMES=0 # Portainer
+
+  # Nginx for main site
+  nginx:
+    image: linuxserver/nginx
+    container_name: nginx
+    restart: unless-stopped
+    depends_on:
+      - traefik
+    networks:
+      - t2_proxy
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      - TZ=$TZ
+      - PUID=$PUID
+      - PGID=$PGID
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.nginx.rule=(Host(`$DOMAINNAME`) ||
+        Host(`www.$DOMAINNAME`))
+      - traefik.http.routers.nginx.entrypoints=websecure
+      - traefik.http.routers.nginx.middlewares=chain-no-auth@file
+    volumes:
+      - $APPDATA_DIR/nginx/nginx:/config/nginx # Configuration
+      - $APPDATA_DIR/nginx/www:/config/www # Site content
+      - $APPDATA_DIR/nginx/log:/config/log # Logs
+      # - $APPDATA_DIR/nginx:/config # optionally mount all the config dir, it has the logs, www data, and configs
+
+
+################################ NEXTCLOUD 
+  nextcloud:
+    container_name: nextcloud
+    image: nextcloud:latest
+    restart: unless-stopped
+    depends_on:
+      - traefik
+      - nextcloud-db
+      - nextcloud-redis
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - t2_proxy
+    volumes:
+    ## Backup data is in stored in /var/www/html/data, make sure there is enough space
+      - $APPDATA_DIR/nextcloud/custom_apps:/var/www/html/custom_apps
+      - $CONFIG_DIR/nextcloud/themes:/var/www/html/themes
+      - $CONFIG_DIR/nextcloud/config:/var/www/html/config
+      - $NC_DATA:/var/www/html/data  ## Important: the install may fail, in this case use chgrp www-data on the NC_DATA directory
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.nextcloud.rule=(Host(`drive.$DOMAINNAME`) ||
+        Host(`www.drive.$DOMAINNAME`))
+      - traefik.http.routers.nextcloud.entrypoints=websecure
+      - traefik.http.routers.nextcloud.middlewares=chain-no-auth@file,nextcloud-redirectregex@file
+    secrets:
+      - mailgun_password
+    environment:
+      - TZ=$TZ
+      - POSTGRES_DB=nextcloud
+      - POSTGRES_USER=$NC_DB_USER
+      - POSTGRES_PASSWORD=$NC_DB_PASS
+      - POSTGRES_HOST=nextcloud-db
+      - NEXTCLOUD_ADMIN_USER=$NC_ADMIN_USER
+      - NEXTCLOUD_ADMIN_PASSWORD=$NC_ADMIN_PASSWORD
+      # Optional space-separated list of domains, handy with our reverse proxy config 
+      - NEXTCLOUD_TRUSTED_DOMAINS=drive.$DOMAINNAME
+      ## Extra variable to get nextcloud working out of the box with reverse proxy
+      - OVERWRITEPROTOCOL=https
+      #- OVERWRITE__CLI__URL=https://drive.$DOMAINNAME
+      ## SMTP Config, using MailGun
+      - SMTP_HOST=smtp.eu.mailgun.org
+      - SMTP_SECURE=tls
+      - SMTP_PORT=587
+      - SMTP_AUTH=true
+      - SMTP_AUTHTYPE=LOGIN
+      - SMTP_NAME=$MAILGUN_USERNAME
+      - SMTP_PASSWORD_FILE=/run/secrets/mailgun_password
+      - MAIL_FROM_ADDRESS=no-reply
+      - MAIL_DOMAIN=$DOMAINNAME
+      # REDIS
+      - REDIS_HOST=nextcloud-redis
+      - REDIS_HOST_PASSWORD=$REDIS_PASSWORD
+
+  nextcloud-db:
+    container_name: nextcloud-db
+    hostname: nextcloud-db
+    image: postgres:latest
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - t2_proxy
+    environment:
+      - POSTGRES_DB=nextcloud
+      - POSTGRES_PASSWORD=$NC_DB_PASS
+      - POSTGRES_USER=$NC_DB_USER
+    volumes:
+      - $APPDATA_DIR/nextcloud-postgres:/var/lib/postgresql/data
+
+  nextcloud-redis:
+    image: redis
+    hostname: nextcloud-redis
+    container_name: nextcloud-redis
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges:true
+    networks:
+      - t2_proxy
+    volumes:
+      - $APPDATA_DIR/nextcloud-redis:/data
+    command: redis-server --requirepass $REDIS_PASSWORD
+    
+
+#### 
+ 
+  # # Portainer - WebUI for Containers
+  # portainer:
+  #   container_name: portainer
+  #   image: portainer/portainer-ce:latest
+  #   restart: unless-stopped
+  #   command: -H tcp://socket-proxy:2375
+  #   networks:
+  #     - t2_proxy
+  #     - socket_proxy
+  #   security_opt:
+  #     - no-new-privileges:true
+  #   volumes:
+  #     # - /var/run/docker.sock:/var/run/docker.sock:ro # # Use Docker Socket Proxy instead for improved security
+  #     - $DOCKERDIR/appdata/portainer/data:/data # Change to local directory if you want to save/transfer config locally
+  #   environment:
+  #     - TZ=$TZ
+  #   labels:
+  #     - "traefik.enable=true"
+  #     ## HTTP Routers
+  #     - "traefik.http.routers.portainer-rtr.entrypoints=websecure"
+  #     - "traefik.http.routers.portainer-rtr.rule=Host(`portainer.$DOMAINNAME`)"
+  #     ## Middlewares
+  #     - "traefik.http.routers.portainer-rtr.middlewares=chain-no-auth@file"
+  #     ## HTTP Services
+  #     - "traefik.http.routers.portainer-rtr.service=portainer-svc"
+  #     - "traefik.http.services.portainer-svc.loadbalancer.server.port=9000"
+
+  ############################# DOWNLOADERS
+
+  # # jDownloader - Download management
+  # jdownloader:
+  #   image: jlesage/jdownloader-2:latest
+  #   container_name: jdownloader
+  #   restart: always
+  #   # profiles:
+  #   # - media
+  #   networks:
+  #     - t2_proxy
+  #   security_opt:
+  #     - no-new-privileges:true
+  #   # ports:
+  #   #   - "$JDOWNLOADER_PORT:5800"
+  #   volumes:
+  #     - $DATADIR/downloads:/data/downloads
+  #     - $DOCKERDIR/appdata/jdownloader:/config
+  #   environment:
+  #     USER_ID: $PUID
+  #     GROUP_ID: $PGID
+  #     TZ: $TZ
+  #     UMASK: 002
+  #     KEEP_APP_RUNNING: 1
+  #     CLEAN_TMP_DIR: 1
+  #     DISPLAY_WIDTH: 1600
+  #     DISPLAY_HEIGHT: 960
+  #     VNC_PASSWORD: $JDOWN_VNC_PASSWD
+  #   labels:
+  #     - "traefik.enable=true"
+  #     ## HTTP Routers
+  #     - "traefik.http.routers.jdownloader-rtr.entrypoints=https"
+  #     - "traefik.http.routers.jdownloader-rtr.rule=Host(`jdown.$DOMAINNAME0`)"
+  #     ## Middlewares
+  #     - "traefik.http.routers.jdownloader-rtr.middlewares=chain-oauth@file"
+  #     ## HTTP Services
+  #     - "traefik.http.routers.jdownloader-rtr.service=jdownloader-svc"
+  #     - "traefik.http.services.jdownloader-svc.loadbalancer.server.port=5800"
+
+  # # TransmissionBT - Torrent Downloader
+  # # ONLY ACCESSIBLE THROUGH https://domain.com/transmission/web/ if using PathPrefix
+  # transmission-vpn:
+  #   image: haugene/transmission-openvpn:latest
+  #   container_name: transmission-vpn
+  #   restart: always
+  #   networks:
+  #     t2_proxy:
+  #       ipv4_address: 192.168.90.169
+  #   # ports:
+  #   #  - "$TRANSMISSION_PORT:9091"
+  #   cap_add:
+  #     - NET_ADMIN
+  #   #devices:
+  #   #  - /dev/net/tun
+  #   #dns:
+  #   #  - 1.1.1.1
+  #   #  - 1.0.0.1
+  #   volumes:
+  #     - /etc/localtime:/etc/localtime:ro
+  #     - $DOCKERDIR/appdata/transmission-vpn/data:/data
+  #     - $DOCKERDIR/appdata/transmission-vpn/config:/config
+  #     - $DATADIR/downloads:/data/downloads
+  #   environment:
+  #     OPENVPN_PROVIDER: $OPENVPN_PROVIDER
+  #     OPENVPN_USERNAME: $OPENVPN_USER
+  #     OPENVPN_PASSWORD: $OPENVPN_PASS
+  #     OPENVPN_CONFIG: "Switzerland-UDP"
+  #     #OPENVPN_OPTS: --inactive 3600 --ping 10 --ping-exit 60
+  #     LOCAL_NETWORK: "$LOCAL_NETWORK"
+  #     PUID: $PUID
+  #     PGID: $PGID
+  #     TZ: $TZ
+  #     UMASK_SET: 2
+  #     TRANSMISSION_RPC_AUTHENTICATION_REQUIRED: "true"
+  #     TRANSMISSION_RPC_HOST_WHITELIST: "127.0.0.1,$SERVER_IP"
+  #     TRANSMISSION_RPC_PASSWORD: $TRANSMISSION_RPC_PASSWORD
+  #     TRANSMISSION_RPC_USERNAME: $TRANSMISSION_RPC_USERNAME
+  #     TRANSMISSION_UMASK: 002
+  #     TRANSMISSION_RATIO_LIMIT: 0.01
+  #     TRANSMISSION_RATIO_LIMIT_ENABLED: "true"
+  #     TRANSMISSION_ALT_SPEED_DOWN: 40000
+  #     TRANSMISSION_ALT_SPEED_ENABLED: "false"
+  #     TRANSMISSION_ALT_SPEED_UP: 250
+  #     TRANSMISSION_SPEED_LIMIT_DOWN: 80000
+  #     TRANSMISSION_SPEED_LIMIT_DOWN_ENABLED: "true"
+  #     TRANSMISSION_SPEED_LIMIT_UP: 500
+  #     TRANSMISSION_SPEED_LIMIT_UP_ENABLED: "true"
+  #     TRANSMISSION_INCOMPLETE_DIR: /data/downloads/torrents/incomplete
+  #     TRANSMISSION_INCOMPLETE_DIR_ENABLED: "true"
+  #     TRANSMISSION_WATCH_DIR: /data/downloads/torrents
+  #     TRANSMISSION_WATCH_DIR_ENABLED: "true"
+  #     TRANSMISSION_DOWNLOAD_DIR: /data/downloads/torrents
+  #     LOG_TO_STDOUT: "true"
+  #   labels:
+  #     - "traefik.enable=true"
+  #     ## HTTP Routers
+  #     - "traefik.http.routers.transmission-vpn-rtr.entrypoints=https"
+  #     - "traefik.http.routers.transmission-vpn-rtr.rule=Host(`trans.$DOMAINNAME`)"
+  #     ## Middlewares
+  #     - "traefik.http.routers.transmission-vpn-rtr.middlewares=middlewares-rate-limit@file"
+  #     ## HTTP Services
+  #     - "traefik.http.routers.transmission-vpn-rtr.service=transmission-vpn-svc"
+  #     - "traefik.http.services.transmission-vpn-svc.loadbalancer.server.port=9091"
+
+
+  # # VSCode - VSCode Editing
+  # vscode:
+  #   image: codercom/code-server:latest
+  #   container_name: vscode
+  #   restart: unless-stopped
+  #   networks:
+  #     - t2_proxy
+  #   volumes:
+  #     - $USERDIR/server:/home/coder/server
+  #     - $DOCKERDIR:/home/coder/docker
+  #     - $DOCKERDIR/appdata/vscode:/home/coder
+  #   environment:
+  #     PASSWORD: $VSCODE_PASSWORD
+  #     # Run as root first, create the directories, then change permissions to user:docker and 775. Disable run as root below.
+  #     user: $PUID:$PGID
+  #     DOCKER_HOST: tcp://socket-proxy:2375
+  #   labels:
+  #     - "traefik.enable=true"
+  #     ## HTTP Routers
+  #     - "traefik.http.routers.vscode-rtr.entrypoints=https"
+  #     - "traefik.http.routers.vscode-rtr.rule=Host(`code.$DOMAINNAME`)"
+  #     ## Middlewares
+  #     - "traefik.http.routers.vscode-rtr.middlewares=chain-oauth@file"
+  #     ## HTTP Services
+  #     - "traefik.http.routers.vscode-rtr.service=vscode-svc"
+  #     - "traefik.http.services.vscode-svc.loadbalancer.server.port=8080"
