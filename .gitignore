@@ -1,6 +1,5 @@
 secrets/*
 .env
-appdata/*
-config/nextcloud/config
+data/*
 *.code-workspace
 config/traefik2/rules/*.yml
