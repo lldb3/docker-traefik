@@ -240,7 +240,7 @@ services:
       MYSQL_USER: $WORDPRESS_DB_USER
       MYSQL_PASSWORD: $WORDPRESS_DB_PASSWORD
 
-  wordpress:
+  wp_blog:
     networks: 
       - t2_proxy
     restart: unless-stopped
@@ -255,16 +255,68 @@ services:
       - WORDPRESS_DB_NAME=wordpress
       - WORDPRESS_DB_USER=$WORDPRESS_DB_USER
       - WORDPRESS_DB_PASSWORD=$WORDPRESS_DB_PASSWORD
-      - WORDPRESS_TABLE_PREFIX=wp_
+      - WORDPRESS_TABLE_PREFIX=wp_blog_
     volumes:
-      - $APPDATA_DIR//wpsite/themes:/var/www/html/wp-content/themes
-      - $APPDATA_DIR//wpsite/plugins:/var/www/html/wp-content/plugins
-      - $APPDATA_DIR//wpsite/uploads:/var/www/html/wp-content/uploads
+      - $APPDATA_DIR/wp_blog/themes:/var/www/html/wp-content/themes
+      - $APPDATA_DIR/wp_blog/plugins:/var/www/html/wp-content/plugins
+      - $APPDATA_DIR/wp_blog/uploads:/var/www/html/wp-content/uploads
     labels:
       - traefik.enable=true
-      - traefik.http.routers.wordpress.rule=(Host(`wp.$SECOND_DOMAINNAME`) || 
-        Host(`www.wp.$SECOND_DOMAINNAME`))
-      - traefik.http.routers.wordpress.entrypoints=websecure
-      - treafik.http.routers.wordpress.middlewares=chain-no-auth@file
+      - traefik.http.routers.wp_blog.rule=(Host(`wp-blog.$SECOND_DOMAINNAME`) || 
+        Host(`www.wp-blog.$SECOND_DOMAINNAME`))
+      - traefik.http.routers.wp_blog.entrypoints=websecure
+      - treafik.http.routers.wp_blog.middlewares=chain-no-auth@file
 
-############### Seafile
+  wp_shop:
+    networks: 
+      - t2_proxy
+    restart: unless-stopped
+    image: wordpress:latest
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - wp_db
+      - traefik
+    environment:
+      - WORDPRESS_DB_HOST=wp_db
+      - WORDPRESS_DB_NAME=wordpress
+      - WORDPRESS_DB_USER=$WORDPRESS_DB_USER
+      - WORDPRESS_DB_PASSWORD=$WORDPRESS_DB_PASSWORD
+      - WORDPRESS_TABLE_PREFIX=wp_shop_
+    volumes:
+      - $APPDATA_DIR/wp_shop/themes:/var/www/html/wp-content/themes
+      - $APPDATA_DIR/wp_shop/plugins:/var/www/html/wp-content/plugins
+      - $APPDATA_DIR/wp_shop/uploads:/var/www/html/wp-content/uploads
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.wp_shop.rule=(Host(`wp-shop.$SECOND_DOMAINNAME`) || 
+        Host(`www.wp-shop.$SECOND_DOMAINNAME`))
+      - traefik.http.routers.wp_shop.entrypoints=websecure
+      - treafik.http.routers.wp_shop.middlewares=chain-no-auth@file
+
+  wp_photo:
+    networks: 
+      - t2_proxy
+    restart: unless-stopped
+    image: wordpress:latest
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      - wp_db
+      - traefik
+    environment:
+      - WORDPRESS_DB_HOST=wp_db
+      - WORDPRESS_DB_NAME=wordpress
+      - WORDPRESS_DB_USER=$WORDPRESS_DB_USER
+      - WORDPRESS_DB_PASSWORD=$WORDPRESS_DB_PASSWORD
+      - WORDPRESS_TABLE_PREFIX=wp_photo_
+    volumes:
+      - $APPDATA_DIR/wp_photo/themes:/var/www/html/wp-content/themes
+      - $APPDATA_DIR/wp_photo/plugins:/var/www/html/wp-content/plugins
+      - $APPDATA_DIR/wp_photo/uploads:/var/www/html/wp-content/uploads
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.wp_photo.rule=(Host(`wp-photo.$SECOND_DOMAINNAME`) || 
+        Host(`www.wp-photo.$SECOND_DOMAINNAME`))
+      - traefik.http.routers.wp_photo.entrypoints=websecure
+      - treafik.http.routers.wp_photo.middlewares=chain-no-auth@file
