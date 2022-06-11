@@ -12,6 +12,9 @@ secrets:
 # You may customize the network subnets (192.168.90.0/24 and 91.0/24) below as you please.
 # Docker Compose version 3.5 or higher required to define networks this way.
 
+# possibly create t2_proxy manually with `docker network create --driver=bridge --subnet=192.168.90.0/24 t2_proxy`
+
+
 networks:
   t2_proxy:
     name: t2_proxy
@@ -19,8 +22,6 @@ networks:
     ipam:
       config:
         - subnet: 192.168.90.0/24
-  default:
-    driver: bridge
   socket_proxy:
     name: socket_proxy
     driver: bridge
@@ -34,10 +35,10 @@ services:
 
   # Traefik 2 - Reverse Proxy
   # Touch (create empty files) traefik.log and acme/acme.json. Set acme.json permissions to 600.
-  # mkdir $APPDATA_DIR/traefik2/acme
-  # touch $APPDATA_DIR/traefik2/acme/acme.json
-  # chmod 600 $APPDATA_DIR/traefik2/acme/acme.json
-  # touch $APPDATA_DIR/traefik2/traefik.log
+  # mkdir $DATA_DIR/traefik2/acme
+  # touch $DATA_DIR/traefik2/acme/acme.json
+  # chmod 600 $DATA_DIR/traefik2/acme/acme.json
+  # touch $DATA_DIR/traefik2/traefik.log
   traefik:
     container_name: "traefik"
     image: "traefik:latest"
@@ -105,8 +106,8 @@ services:
     volumes:
       # - /var/run/docker.sock:/var/run/docker.sock:ro # Use Docker Socket Proxy instead for improved security
       - $CONFIG_DIR/traefik2/rules:/rules
-      - $APPDATA_DIR/traefik2/acme:/acme
-      - $APPDATA_DIR/traefik2/traefik.log:/traefik.log
+      - $DATA_DIR/traefik2/acme:/acme
+      - $DATA_DIR/traefik2/traefik.log:/traefik.log
     environment:
       - TZ=$TZ
       - CLOUDFLARE_DNS_API_TOKEN_FILE=/run/secrets/cloudflare_api_token 
