@@ -8,7 +8,7 @@ The configuration is provided as an example, it originated from [this work](http
 
 ### Directory structure
 
-* `appdata` - contains all info that is not suppose to be shared: 
+* `data` - contains all info that is not suppose to be shared: 
     - Custom configs with sensitive secrets
     - Databases
     - Etc
@@ -54,14 +54,5 @@ Does not work properly until we change the `config.php` file with bellow options
 
 ## TODOs
 
-- Change defaul HTTP headers for nextcloud in order to solve "X-Forwarded-For" issues
-- Harden nextcloud: https://docs.nextcloud.com/server/latest/admin_manual/installation/harden_server.html 
-- More nextcloud config to remove .caldav warnings
-- Documentation and deployment of other auth systems (2FA, authelia)
+- [ ] Documentation and deployment of other auth systems (2FA, authelia)
 
-### Need attention
-
-```
-# redis
-vm.overcommit_memory = 1' to /etc/sysctl.conf
-```
