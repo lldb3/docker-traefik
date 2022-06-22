@@ -48,6 +48,12 @@ x-common-keys-core: &common-keys-core
   # profiles:
   # - core
 
+x-common-keys-service: &common-keys-service
+  networks:
+    - t2_proxy
+  security_opt:
+    - no-new-privileges:true
+  restart: unless-stopped
 
 ########################### SERVICES
 services:
@@ -220,7 +226,7 @@ services:
 
   # Nginx for main site
   root_nginx:
-    <<: *common-keys-core 
+    <<: *common-keys-service
     image: linuxserver/nginx
     container_name: root_nginx
     restart: unless-stopped
@@ -228,8 +234,6 @@ services:
       - traefik
     networks:
       - t2_proxy
-    security_opt:
-      - no-new-privileges:true
     labels:
       - traefik.enable=true
       - traefik.http.routers.nginx.rule=(Host(`$DOMAINNAME`) ||
