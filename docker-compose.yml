@@ -68,14 +68,13 @@ services:
       - --global.sendAnonymousUsage=false
       - --entryPoints.web.address=:80
       - --entryPoints.websecure.address=:443
-      - --entryPoints.traefik.address=:8080
-      # Root CA for secure exteral connection to backend services
-      - --serversTransport.rootCAs=/run/secrets/internal_root_ca
       # Allow these IPs to set the X-Forwarded-* headers - Cloudflare IPs: https://www.cloudflare.com/ips/
-      - --entrypoints.https.forwardedHeaders.trustedIPs=173.245.48.0/20,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,141.101.64.0/18,108.162.192.0/18,190.93.240.0/20,188.114.96.0/20,197.234.240.0/22,198.41.128.0/17,162.158.0.0/15,104.16.0.0/13,104.24.0.0/14,172.64.0.0/13,131.0.72.0/22
+      - --entrypoints.https.forwardedHeaders.trustedIPs=173.245.48.0/20,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,141.101.64.0/18,108.162.192.0/18,190.93.240.0/20,
+          188.114.96.0/20,197.234.240.0/22,198.41.128.0/17,162.158.0.0/15,104.16.0.0/13,104.24.0.0/14,172.64.0.0/13,131.0.72.0/22,
+          2400:cb00::/32,2606:4700::/32,2803:f800::/32,2405:b500::/32,2405:8100::/32,2a06:98c0::/29,2c0f:f248::/32
       - --api=true
       # - --api.insecure=true
-      - --api.dashboard=true
+      - --api.dashboard=false
       - --log=true
       - --log.level=WARN
       - --accessLog=true
@@ -99,6 +98,8 @@ services:
       - --entrypoints.websecure.http.tls.certresolver=dns-cloudflare
       - --entrypoints.websecure.http.tls.domains[0].main=$DOMAINNAME
       - --entrypoints.websecure.http.tls.domains[0].sans=*.$DOMAINNAME
+      - --entrypoints.websecure.http.tls.domains[1].main=$SECOND_DOMAINNAME
+      - --entrypoints.websecure.http.tls.domains[1].sans=*.$SECOND_DOMAINNAME
       ## DNS Challenge settings
       #- --certificatesResolvers.dns-cloudflare.acme.caServer=https://acme-staging-v02.api.letsencrypt.org/directory # LetsEncrypt Staging Server - uncomment when testing
       - --certificatesResolvers.dns-cloudflare.acme.dnsChallenge=true
@@ -124,10 +125,6 @@ services:
         published: 443
         protocol: tcp
         mode: host
-      # - target: 8080
-      #   published: 8080
-      #   protocol: tcp
-      #   mode: host
     volumes:
       # - /var/run/docker.sock:/var/run/docker.sock:ro # Use Docker Socket Proxy instead for improved security
       - $CONFIG_DIR/traefik2/rules:/rules
@@ -136,11 +133,10 @@ services:
     environment:
       - TZ=$TZ
       - CLOUDFLARE_DNS_API_TOKEN_FILE=/run/secrets/cloudflare_api_token 
-      - HTPASSWD_FILE=/run/secrets/htpasswd # HTPASSWD_FILE can be whatever as it is not used/called anywhere.
+      - HTPASSWD_FILE=/run/secrets/htpasswd
     secrets:
       - cloudflare_api_token
       - htpasswd
-      - internal_root_ca
     labels:
       - traefik.enable=true
       # HTTP-to-HTTPS Redirect
@@ -148,14 +144,6 @@ services:
       - "traefik.http.routers.http-catchall.rule=HostRegexp(`{host:.+}`)"
       - "traefik.http.routers.http-catchall.middlewares=redirect-to-https"
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
-      # HTTP Routers
-      - traefik.http.routers.traefik-rtr.entrypoints=websecure
-      - traefik.http.routers.traefik-rtr.rule=(Host(`traefik.$DOMAINNAME`) ||
-        Host(`www.traefik.$DOMAINNAME`))
-      ## Services - API
-      - traefik.http.routers.traefik-rtr.service=api@internal
-      ## Middlewares
-      - traefik.http.routers.traefik-rtr.middlewares=chain-basic-auth@file
 
   # Docker Socket Proxy - Security Enchanced Proxy for Docker Socket
   socket-proxy:
