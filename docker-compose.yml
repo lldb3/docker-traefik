@@ -104,8 +104,8 @@ services:
       - --entrypoints.websecure.http.tls.certresolver=dns-cloudflare
       - --entrypoints.websecure.http.tls.domains[0].main=$DOMAINNAME
       - --entrypoints.websecure.http.tls.domains[0].sans=*.$DOMAINNAME
-      - --entrypoints.websecure.http.tls.domains[1].main=$SECOND_DOMAINNAME
-      - --entrypoints.websecure.http.tls.domains[1].sans=*.$SECOND_DOMAINNAME
+      - --entrypoints.websecure.http.tls.domains[1].main=$DOMAINNAME_2
+      - --entrypoints.websecure.http.tls.domains[1].sans=*.$DOMAINNAME_2
       ## DNS Challenge settings
       #- --certificatesResolvers.dns-cloudflare.acme.caServer=https://acme-staging-v02.api.letsencrypt.org/directory # LetsEncrypt Staging Server - uncomment when testing
       - --certificatesResolvers.dns-cloudflare.acme.dnsChallenge=true
@@ -247,3 +247,6 @@ services:
       - $DATA_DIR/nginx/www:/config/www # Site content
       - $DATA_DIR/nginx/log:/config/log # Logs
       # - $DATA_DIR/nginx:/config # optionally mount all the config dir, it has the logs, www data, and configs
+
+
+
