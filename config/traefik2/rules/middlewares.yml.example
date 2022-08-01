@@ -23,7 +23,6 @@ http:
         addVaryHeader: true
 
         #### HSTS Headers
-        sslRedirect: true
         customFrameOptionsValue: "same-origin"
         # frameDeny: true # overwritten by customFrameOptionsValue
         # sslRedirect: true #replaced with middlewares-https-redirectscheme for v2.5.x
@@ -41,7 +40,7 @@ http:
         browserXssFilter: true
         referrerPolicy: "same-origin"
 
-        #### Proxy
+        #### Proxy 
         hostsProxyHeaders:
           - "X-Forwarded-Host"
 

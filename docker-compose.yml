@@ -217,7 +217,7 @@ services:
       - "traefik.enable=true"
       ## HTTP Routers
       - "traefik.http.routers.portainer-rtr.entrypoints=websecure"
-      - "traefik.http.routers.portainer-rtr.rule=Host(`portainer.$DOMAINNAME`)"
+      - "traefik.http.routers.portainer-rtr.rule=Host(`portainer.$DOMAINNAME_2`)"
       ## Middlewares
       - "traefik.http.routers.portainer-rtr.middlewares=chain-no-auth@file"
       ## HTTP Services
@@ -237,7 +237,7 @@ services:
     labels:
       - traefik.enable=true
       - traefik.http.routers.nginx.rule=(Host(`$DOMAINNAME`) ||
-        Host(`www.$DOMAINNAME`))
+        Host(`www.$DOMAINNAME`) || Host(`$DOMAINNAME_2`) || Host(`www.$DOMAINNAME_2`))
       - traefik.http.routers.nginx.entrypoints=websecure
       - traefik.http.routers.nginx.middlewares=chain-no-auth@file
     volumes:
