@@ -3,3 +3,4 @@ secrets/*
 data/*
 *.code-workspace
 config/traefik2/rules/*.yml
+config/nginx
