@@ -76,6 +76,7 @@ services:
       - --entryPoints.websecure.address=:443
       ## RootCA in case of HTTPS internal traffic
       - --serversTransport.rootCAs=/run/secrets/internal_root_ca
+      - --serversTransport.insecureSkipVerify=true # disables checking internal certificates
       # Allow these IPs to set the X-Forwarded-* headers - Cloudflare IPs: https://www.cloudflare.com/ips/
       - --entrypoints.https.forwardedHeaders.trustedIPs=173.245.48.0/20,103.21.244.0/22,103.22.200.0/22,103.31.4.0/22,141.101.64.0/18,108.162.192.0/18,190.93.240.0/20,
           188.114.96.0/20,197.234.240.0/22,198.41.128.0/17,162.158.0.0/15,104.16.0.0/13,104.24.0.0/14,172.64.0.0/13,131.0.72.0/22,
@@ -106,12 +107,12 @@ services:
       - --entrypoints.websecure.http.tls.certresolver=dns-cloudflare
       - --entrypoints.websecure.http.tls.domains[0].main=$DOMAINNAME
       - --entrypoints.websecure.http.tls.domains[0].sans=*.$DOMAINNAME
-      - --entrypoints.websecure.http.tls.domains[1].main=$DOMAINNAME_2
-      - --entrypoints.websecure.http.tls.domains[1].sans=*.$DOMAINNAME_2
-      - --entrypoints.websecure.http.tls.domains[2].main=$DOMAINNAME_3
-      - --entrypoints.websecure.http.tls.domains[2].sans=*.$DOMAINNAME_3
-      - --entrypoints.websecure.http.tls.domains[3].main=$DOMAINNAME_4
-      - --entrypoints.websecure.http.tls.domains[3].sans=*.$DOMAINNAME_4
+      # - --entrypoints.websecure.http.tls.domains[1].main=$DOMAINNAME_2
+      # - --entrypoints.websecure.http.tls.domains[1].sans=*.$DOMAINNAME_2
+      # - --entrypoints.websecure.http.tls.domains[2].main=$DOMAINNAME_3
+      # - --entrypoints.websecure.http.tls.domains[2].sans=*.$DOMAINNAME_3
+      - --entrypoints.websecure.http.tls.domains[1].main=$DOMAINNAME_4
+      - --entrypoints.websecure.http.tls.domains[1].sans=*.$DOMAINNAME_4
       ## DNS Challenge settings
       #- --certificatesResolvers.dns-cloudflare.acme.caServer=https://acme-staging-v02.api.letsencrypt.org/directory # LetsEncrypt Staging Server - uncomment when testing
       - --certificatesResolvers.dns-cloudflare.acme.dnsChallenge=true
@@ -207,53 +208,53 @@ services:
       - VOLUMES=1 # Portainer
  
   # Portainer - WebUI for Containers
-  portainer:
-    <<: *common-keys-core
-    container_name: portainer
-    image: portainer/portainer-ce:latest
-    command: -H tcp://socket-proxy:2375
-    networks:
-      - t2_proxy
-      - socket_proxy
-    security_opt:
-      - no-new-privileges:true
-    volumes:
-      # - /var/run/docker.sock:/var/run/docker.sock:ro # # Use Docker Socket Proxy instead for improved security
-      - $DATA_DIR/portainer/data:/data # Change to local directory if you want to save/transfer config locally
-    labels:
-      - "traefik.enable=true"
-      ## HTTP Routers
-      - "traefik.http.routers.portainer-rtr.entrypoints=websecure"
-      - "traefik.http.routers.portainer-rtr.rule=Host(`portainer.$DOMAINNAME_2`)"
-      ## Middlewares
-      - "traefik.http.routers.portainer-rtr.middlewares=chain-no-auth@file"
-      ## HTTP Services
-      - "traefik.http.routers.portainer-rtr.service=portainer-svc"
-      - "traefik.http.services.portainer-svc.loadbalancer.server.port=9000"
+  # portainer:
+  #   <<: *common-keys-core
+  #   container_name: portainer
+  #   image: portainer/portainer-ce:latest
+  #   command: -H tcp://socket-proxy:2375
+  #   networks:
+  #     - t2_proxy
+  #     - socket_proxy
+  #   security_opt:
+  #     - no-new-privileges:true
+  #   volumes:
+  #     # - /var/run/docker.sock:/var/run/docker.sock:ro # # Use Docker Socket Proxy instead for improved security
+  #     - $DATA_DIR/portainer/data:/data # Change to local directory if you want to save/transfer config locally
+  #   labels:
+  #     - "traefik.enable=true"
+  #     ## HTTP Routers
+  #     - "traefik.http.routers.portainer-rtr.entrypoints=websecure"
+  #     - "traefik.http.routers.portainer-rtr.rule=Host(`portainer.$DOMAINNAME_2`)"
+  #     ## Middlewares
+  #     - "traefik.http.routers.portainer-rtr.middlewares=chain-no-auth@file"
+  #     ## HTTP Services
+  #     - "traefik.http.routers.portainer-rtr.service=portainer-svc"
+  #     - "traefik.http.services.portainer-svc.loadbalancer.server.port=9000"
 
   # Nginx for main site
-  root_nginx:
-    <<: *common-keys-service
-    image: linuxserver/nginx
-    container_name: root_nginx
-    restart: unless-stopped
-    depends_on:
-      - traefik
-    networks:
-      - t2_proxy
-    labels:
-      - traefik.enable=true
-      - traefik.http.routers.nginx.rule=(Host(`$DOMAINNAME`) ||
-        Host(`www.$DOMAINNAME`) || Host(`$DOMAINNAME_2`) || Host(`www.$DOMAINNAME_2`))
-      - traefik.http.routers.nginx.entrypoints=websecure
-      - traefik.http.routers.nginx.middlewares=chain-no-auth@file
-    volumes:
-      - /etc/localtime:/etc/localtime:ro
-      - /etc/timezone:/etc/timezone:ro
-      - $CONFIG_DIR/nginx:/config/nginx # Configuration
-      - $DATA_DIR/nginx/www:/config/www # Site content
-      - $DATA_DIR/nginx/log:/config/log # Logs
-      # - $DATA_DIR/nginx:/config # optionally mount all the config dir, it has the logs, www data, and configs
+  # root_nginx:
+  #   <<: *common-keys-service
+  #   image: linuxserver/nginx
+  #   container_name: root_nginx
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - traefik
+  #   networks:
+  #     - t2_proxy
+  #   labels:
+  #     - traefik.enable=true
+  #     - traefik.http.routers.nginx.rule=(Host(`$DOMAINNAME`) ||
+  #       Host(`www.$DOMAINNAME`))
+  #     - traefik.http.routers.nginx.entrypoints=websecure
+  #     - traefik.http.routers.nginx.middlewares=chain-no-auth@file
+  #   volumes:
+  #     - /etc/localtime:/etc/localtime:ro
+  #     - /etc/timezone:/etc/timezone:ro
+  #     - $CONFIG_DIR/nginx:/config/nginx # Configuration
+  #     - $DATA_DIR/nginx/www:/config/www # Site content
+  #     - $DATA_DIR/nginx/log:/config/log # Logs
+  #     # - $DATA_DIR/nginx:/config # optionally mount all the config dir, it has the logs, www data, and configs
 
 
 
